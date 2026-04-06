@@ -416,10 +416,6 @@ go work sync
       files — the compilation must succeed)
 - [x] `golangci-lint run ./services/internal/...` produces no blocking
       findings
-- [ ] Manual verification: a small `main.go` scratch file (not
-      committed) can import and call `vault.NewClient`,
-      `postgres.Connect`, `nats.Connect`, and `telemetry.InitTracer`
-      against real Foundation services without panicking
 
 ### Implementation notes
 
@@ -988,6 +984,10 @@ Confirm:
 - [ ] Service starts against staging infrastructure with all checks green
 - [ ] SIGHUP reload confirmed working (log evidence)
 - [ ] No actual secrets committed to the repository
+- [ ] `vault.NewClient`, `postgres.Connect`, `nats.Connect`, and
+      `telemetry.InitTracer` all succeed against real Foundation services
+      (validated by the service startup in task 4.3 — no separate scratch
+      file required)
 
 ---
 
