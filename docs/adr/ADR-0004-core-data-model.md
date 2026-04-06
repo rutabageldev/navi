@@ -257,6 +257,39 @@ CREATE TABLE feedback_signals (
 These signals are aggregated by the summarizer to weight topic
 relevance and source quality over time.
 
+### Migration Backward-Compatibility Constraint
+
+All migrations MUST be additive only. This is a hard constraint
+required by the automated rollback model documented in ADR-0003.
+A code rollback must always be safe against the current database
+schema; this is only guaranteed if schema changes never break a
+prior application version.
+
+**Allowed in a single migration:**
+- Creating new tables
+- Adding new nullable columns to existing tables
+- Adding new indexes
+
+**MUST NOT be done in a single migration:**
+- Dropping columns
+- Renaming columns
+- Changing column types
+- Adding NOT NULL columns without a default
+- Dropping tables that any version of the code still references
+
+Any schema change that would break a previous application version
+MUST be executed as a multi-step migration sequence across separate
+releases:
+
+1. **Release N:** Add the new structure alongside the old (additive).
+   The application at N can ignore the new column/table.
+2. **Release N+1:** Migrate data if needed; switch the application to
+   use the new structure. Both N and N+1 are compatible with the
+   schema at this point.
+3. **Release N+2:** Drop the old column or table. Only safe once N
+   is no longer the rollback target (i.e., N+1 has been stable in
+   prod long enough that N will not be rolled back to).
+
 ## Consequences
 
 **Positive:**
