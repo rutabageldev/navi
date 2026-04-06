@@ -252,7 +252,8 @@ where noted.
 ```
 NAVI_ENV            dev | staging | prod (set in compose file, not Vault)
 NAVI_LOG_LEVEL      debug | info | warn | error (default: info)
-VAULT_ADDR          http://10.0.40.10:8200 (set in compose file)
+VAULT_ADDR          https://10.0.40.10:8200 (set in compose file)
+VAULT_CACERT        /vault/tls/vault-ca.crt (mounted from /opt/foundation/vault/tls/vault-ca.crt)
 VAULT_TOKEN         (set in compose file, sourced from host env)
 NAVI_HOST           Host IP for port bindings (set in compose file)
 ```

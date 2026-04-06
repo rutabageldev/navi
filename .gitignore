@@ -6,3 +6,4 @@ tmp/
 dist/
 *.test
 coverage.out
+/digest

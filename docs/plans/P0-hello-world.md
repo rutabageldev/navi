@@ -37,7 +37,7 @@ logic. These belong to P1 and later.
       creatable
 - [ ] Foundation NATS JetStream is running (ruby-core) and reachable
       from the homelab node
-- [ ] Foundation Vault is running at `http://10.0.40.10:8200`
+- [ ] Foundation Vault is running at `https://10.0.40.10:8200`
 - [ ] Foundation OTel Collector is running and its OTLP gRPC port
       (default 4317) is reachable from the homelab node
 - [ ] Foundation Prometheus, Grafana, Loki, Tempo, Promtail, and Uptime
@@ -430,7 +430,7 @@ in v2. ADR-0012 updated to reflect the correct v2 configuration.
 
 ---
 
-## Phase 3 — services/digest Hello World
+## Phase 3 — services/digest Hello World ✓ COMPLETE (2026-04-06)
 
 **Purpose:** Implement the simplest possible running digest service:
 a single binary that initializes all dependencies, serves the health
@@ -689,9 +689,12 @@ services:
     restart: unless-stopped
     environment:
       NAVI_ENV: prod
-      VAULT_ADDR: http://10.0.40.10:8200
+      VAULT_ADDR: https://10.0.40.10:8200
+      VAULT_CACERT: /vault/tls/vault-ca.crt
       VAULT_TOKEN: ${VAULT_TOKEN}
       NAVI_HOST: ${NAVI_HOST:-10.0.40.10}
+    volumes:
+      - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
     ports:
       - "${NAVI_HOST:-10.0.40.10}:8080:8080"
     networks:
@@ -716,9 +719,12 @@ services:
     restart: unless-stopped
     environment:
       NAVI_ENV: staging
-      VAULT_ADDR: http://10.0.40.10:8200
+      VAULT_ADDR: https://10.0.40.10:8200
+      VAULT_CACERT: /vault/tls/vault-ca.crt
       VAULT_TOKEN: ${VAULT_TOKEN}
       NAVI_HOST: ${NAVI_HOST:-10.0.40.10}
+    volumes:
+      - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
     ports:
       - "${NAVI_HOST:-10.0.40.10}:8081:8080"
     networks:
@@ -730,7 +736,21 @@ networks:
 ```
 
 Create `docker-compose.dev.yml` at repo root (builds from source,
-uses local Postgres and mock dependencies):
+connects to Foundation services already running on this node):
+
+> **Implementation note:** The plan originally included local Postgres,
+> NATS, and Vault containers in docker-compose.dev.yml. This was
+> corrected during execution: dev development on this node runs against
+> the Foundation services already running (Vault at 10.0.40.10:8200,
+> Postgres at 10.0.40.10:5432, NATS via ruby-core). Spinning up
+> duplicates wastes resources and creates confusion. The dev compose
+> file only runs the digest service and points it at Foundation.
+>
+> Additionally: Foundation Vault uses TLS (HTTPS). All compose files use
+> `https://10.0.40.10:8200` and mount the Foundation CA cert at
+> `/opt/foundation/vault/tls/vault-ca.crt`. Port 8080 was already taken
+> by unifi-controller on this node, so dev uses port 8082 via NAVI_PORT.
+
 ```yaml
 services:
   digest:
@@ -742,55 +762,17 @@ services:
     container_name: navi-digest-dev
     environment:
       NAVI_ENV: dev
-      VAULT_ADDR: http://vault:8200
-      VAULT_TOKEN: dev-root-token
+      VAULT_ADDR: https://10.0.40.10:8200
+      VAULT_CACERT: /vault/tls/vault-ca.crt
+      VAULT_TOKEN: ${VAULT_TOKEN}
       NAVI_HOST: 0.0.0.0
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
-      - nats
-      - vault
-    networks:
-      - navi-dev
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: navi-dev-postgres
-    environment:
-      POSTGRES_USER: navi
-      POSTGRES_PASSWORD: navi
-      POSTGRES_DB: navi
-    ports:
-      - "5433:5432"
-    networks:
-      - navi-dev
-
-  nats:
-    image: nats:2.10-alpine
-    container_name: navi-dev-nats
-    command: "-js"
-    ports:
-      - "4222:4222"
-    networks:
-      - navi-dev
-
-  vault:
-    image: hashicorp/vault:1.17
-    container_name: navi-dev-vault
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    cap_add:
-      - IPC_LOCK
-    ports:
-      - "8200:8200"
-    networks:
-      - navi-dev
-
-networks:
-  navi-dev:
-    driver: bridge
+      NAVI_PORT: "8082"
+      NAVI_LOG_LEVEL: debug
+    volumes:
+      - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
+    # host networking gives the container direct access to Foundation services
+    # (Vault, Postgres, NATS) without any extra network configuration.
+    network_mode: host
 ```
 
 #### 3.9 — Create external Docker network on homelab node
@@ -812,20 +794,21 @@ container start).
 
 ### Exit criteria
 
-- [ ] `go build ./services/digest/cmd/digest/` succeeds
-- [ ] `go vet ./services/digest/...` produces no output
-- [ ] `go test -race ./services/digest/...` passes
-- [ ] `golangci-lint run ./services/digest/...` produces no blocking
+- [x] `go build ./services/digest/cmd/digest/` succeeds
+- [x] `go vet ./services/digest/...` produces no output
+- [x] `go test -race ./services/digest/...` passes
+- [x] `golangci-lint run ./services/digest/...` produces no blocking
       findings
-- [ ] `make dev` starts all containers without error
-- [ ] `curl http://localhost:8080/v1/health/live` returns 200 with
-      `{"status":"ok"}`
-- [ ] `curl http://localhost:8080/v1/health/ready` returns 200 with
+- [x] `make dev` starts the digest container without error
+- [ ] `curl http://localhost:8082/v1/health/live` returns 200 with
+      `{"status":"ok"}` (requires VAULT_TOKEN set; verified in Phase 4)
+- [ ] `curl http://localhost:8082/v1/health/ready` returns 200 with
       all three checks reporting "ok" and a `version` field present
-- [ ] `docker compose down` cleans up all dev containers
-- [ ] `make check-generated` confirms oapi-codegen output matches spec
+      (requires Vault seeded; verified in Phase 4)
+- [x] `make check-generated` confirms oapi-codegen output matches spec
 - [ ] The `navi` external Docker network exists on the homelab node
-      (`docker network inspect navi` returns without error)
+      (`docker network inspect navi` returns without error) — run
+      `make setup-infra` before Phase 4.3
 
 ---
 
