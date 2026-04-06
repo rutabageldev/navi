@@ -1,4 +1,4 @@
-# ADR-003: CI/CD Pipeline and Environment Strategy
+# ADR-0003: CI/CD Pipeline and Environment Strategy
 
 ## Status
 Accepted
@@ -60,8 +60,8 @@ communications (email, SMS) originate from prod only.
 
 ### Pipeline: Tagged Release Promotion
 
-The deployment pipeline is triggered exclusively by a Git tag. Direct
-pushes to main do not trigger a production deployment.
+The deployment pipeline MUST be triggered exclusively by a Git tag.
+Direct pushes to main MUST NOT trigger a production deployment.
 
 ```
 Developer creates tag (e.g. v1.2.0)
@@ -143,8 +143,9 @@ fix/*         -- bug fix branches, merged via PR
 v{major}.{minor}.{patch}  -- release tags, trigger the pipeline
 ```
 
-No direct commits to main. All changes via pull request. Tags are
-created manually by the author after reviewing what is on main.
+Direct commits to main MUST NOT be made. All changes MUST go through
+a pull request. Tags MUST be created manually by the author after
+reviewing what is on main.
 
 ### Makefile Targets
 
@@ -182,6 +183,14 @@ make status           # Show running containers across all environments
   GitHub Actions runners. This requires either a public ingress or a
   self-hosted GitHub Actions runner on the node. A self-hosted runner
   is the preferred approach to avoid exposing additional ports.
+
+**Neutral:**
+- Three environments (dev/staging/prod) is the same model used by
+  Foundation and ruby-core; this ADR inherits an established
+  convention rather than introducing a new one.
+- A self-hosted GitHub Actions runner is a prerequisite for pipeline
+  access to the homelab node; its presence or absence does not affect
+  the pipeline logic itself.
 
 ## Alternatives Considered
 

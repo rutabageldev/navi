@@ -1,4 +1,4 @@
-# ADR-004: Core Data Model
+# ADR-0004: Core Data Model
 
 ## Status
 Accepted
@@ -67,7 +67,7 @@ required.
 ### Schema Definition (v1 tables)
 
 The following tables are required for the digest service (v1). All
-tables live in the `navi_{env}` schema.
+tables MUST live in the `navi_{env}` schema.
 
 ```sql
 -- Content sources
@@ -276,6 +276,12 @@ relevance and source quality over time.
 - Embedding generation adds latency and API cost to the enrichment
   pipeline. For v1 deduplication, a simpler URL-based dedup is
   sufficient and embeddings can be generated asynchronously.
+
+**Neutral:**
+- Pre-defining future entity tables (people, companies, profile) adds
+  no runtime overhead; the tables remain empty until features use them.
+- pgvector is already installed on the Foundation Postgres instance;
+  this ADR requires no new infrastructure setup to execute.
 
 ## Alternatives Considered
 

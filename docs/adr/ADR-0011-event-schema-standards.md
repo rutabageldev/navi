@@ -1,4 +1,4 @@
-# ADR-011: Event Schema Standards
+# ADR-0011: Event Schema Standards
 
 ## Status
 Accepted
@@ -9,8 +9,8 @@ Accepted
 ## Context
 
 Navi's internal architecture is event-driven via NATS JetStream.
-ADR-002 establishes NATS as the event bus and defines the subject
-topology. ADR-005 defines the subjects used by the digest service.
+ADR-0002 establishes NATS as the event bus and defines the subject
+topology. ADR-0005 defines the subjects used by the digest service.
 Neither ADR defines the structure of the events themselves beyond
 noting that CloudEvents v1.0 is the contract.
 
@@ -28,8 +28,8 @@ strategy, and the schema registry pattern.
 
 ### CloudEvents Envelope Composition
 
-All Navi events conform to CloudEvents v1.0. The following attributes
-are required on every event:
+All Navi events MUST conform to CloudEvents v1.0. The following
+attributes MUST be present on every event:
 
 **Required CloudEvents attributes:**
 
@@ -56,7 +56,7 @@ tracestate     W3C Trace Context tracestate value (may be empty)
 ```
 
 The `traceparent` and `tracestate` extension attributes enable trace
-context propagation across NATS boundaries as defined in ADR-008.
+context propagation across NATS boundaries as defined in ADR-0008.
 
 **Example envelope:**
 
@@ -84,10 +84,10 @@ context propagation across NATS boundaries as defined in ADR-008.
 
 ### Event Type Registry
 
-Event types follow a reverse-DNS naming convention rooted at `navi.`.
-All event types are registered in `docs/events/REGISTRY.md` in the
-navi repository. No event type is used in code without a registry
-entry.
+Event types MUST follow a reverse-DNS naming convention rooted at
+`navi.`. All event types MUST be registered in `docs/events/REGISTRY.md`
+in the navi repository. An event type MUST NOT be used in code without
+a corresponding registry entry.
 
 **v1 Event Type Registry:**
 
@@ -197,7 +197,7 @@ example) subscribes to Navi events.
 
 ### NATS JetStream Configuration
 
-All Navi subjects are backed by JetStream streams for durability
+All Navi subjects MUST be backed by JetStream streams for durability
 and at-least-once delivery. Stream configuration:
 
 ```
@@ -243,6 +243,14 @@ reason.
 - The dual-publish transition pattern for breaking schema changes adds
   short-term complexity. Accepted as the cost of maintaining a clean
   contract.
+
+**Neutral:**
+- CloudEvents v1.0 is the established event envelope standard in the
+  ruby-core infrastructure; adopting it here is a consistency
+  decision, not a novel architectural choice.
+- The `navischema` extension attribute follows the CloudEvents
+  extension naming convention (lowercase, alphanumeric); it does not
+  conflict with any standard CloudEvents attributes.
 
 ## Alternatives Considered
 

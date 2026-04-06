@@ -1,4 +1,4 @@
-# ADR-002: Top-Level Architecture
+# ADR-0002: Top-Level Architecture
 
 ## Status
 Accepted
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-With the repo scope established in ADR-001, this ADR documents the
+With the repo scope established in ADR-0001, this ADR documents the
 top-level architectural decisions that govern how Navi is built,
 deployed, and integrated with the surrounding infrastructure. These
 decisions span all services within the navi repository and establish
@@ -30,27 +30,28 @@ must be compatible with this single-node homelab constraint.
 
 ### Deployment Model
 
-All Navi services are containerized using Docker Compose, consistent
-with Foundation and ruby-core. Each service has its own Dockerfile.
-The top-level docker-compose.yml defines all services, networks, and
-volume mounts. Environment-specific overrides are handled via
-docker-compose.staging.yml and docker-compose.dev.yml.
+All Navi services MUST be containerized using Docker Compose,
+consistent with Foundation and ruby-core. Each service MUST have its
+own Dockerfile. The top-level docker-compose.yml defines all services,
+networks, and volume mounts. Environment-specific overrides are handled
+via docker-compose.staging.yml and docker-compose.dev.yml.
 
-All port bindings use explicit host IP bindings via the
+All port bindings MUST use explicit host IP bindings via the
 NAVI_HOST environment variable, consistent with Foundation's pattern
 using FOUNDATION_HOST.
 
 ### Language
 
-Go is the primary implementation language for all Navi backend
+Go MUST be the primary implementation language for all Navi backend
 services, consistent with the preference for Go over Python for new
 services. The standard library and a small set of well-maintained
-dependencies are preferred over heavy frameworks.
+dependencies are preferred over heavy frameworks. No new Python
+services MUST NOT be introduced.
 
 ### Event-Driven Internal Architecture
 
-All inter-service communication within Navi is event-driven via NATS
-JetStream. The NATS instance deployed in ruby-core is used as the
+All inter-service communication within Navi MUST be event-driven via
+NATS JetStream. The NATS instance deployed in ruby-core is used as the
 shared event bus. All Navi subjects are namespaced under `navi.>` to
 guarantee zero collision with ruby-core subjects.
 
@@ -73,8 +74,8 @@ navi.sms.inbound            # inbound SMS from Twilio webhook
 navi.sms.outbound           # outbound SMS to be sent via Twilio
 ```
 
-All events conform to the CloudEvents v1.0 specification, consistent
-with ruby-core's event contract.
+All events MUST conform to the CloudEvents v1.0 specification,
+consistent with ruby-core's event contract.
 
 ### Data Store
 
@@ -102,9 +103,9 @@ live in each service's directory under `migrations/`.
 
 ### Secrets Management
 
-All secrets are stored in Vault. No credentials are hardcoded or
-stored in environment files committed to the repository. The Vault
-path convention for Navi is:
+All secrets MUST be stored in Vault. Credentials MUST NOT be
+hardcoded or stored in environment files committed to the repository.
+The Vault path convention for Navi is:
 
 ```
 secret/data/navi/{environment}/{service}
@@ -126,11 +127,11 @@ runtime dependencies not stored in Vault itself.
 
 ### Operations Interface
 
-A top-level Makefile is the primary interface for all operational
+A top-level Makefile MUST be the primary interface for all operational
 tasks: starting, stopping, deploying, running migrations, and
 checking service health. Targets are environment-aware via an ENV
 variable (dev, staging, prod). Direct docker compose invocations
-are discouraged outside of the Makefile.
+SHOULD NOT be used outside of the Makefile.
 
 ### External API Dependencies
 
@@ -180,6 +181,14 @@ changes.
   a personal homelab with one primary user.
 - NATS in ruby-core creates cross-repo availability coupling. Accepted
   pending future migration to Foundation.
+
+**Neutral:**
+- Docker Compose and Go are consistent with Foundation and ruby-core;
+  this ADR extends an existing pattern rather than establishing a new
+  one.
+- Schema-per-environment isolation on a shared Postgres instance is a
+  well-established approach. It provides data separation without
+  requiring infrastructure duplication.
 
 ## Alternatives Considered
 

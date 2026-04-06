@@ -1,4 +1,4 @@
-# ADR-001: Navi Repo Scope and Personal Enablement Charter
+# ADR-0001: Navi Repo Scope and Personal Enablement Charter
 
 ## Status
 Accepted
@@ -39,9 +39,9 @@ enablement and intelligence features. Its scope is defined as follows:
 - Communication triage and personal email awareness
 - Inbound interaction handling (SMS via Twilio)
 - Outbound delivery (email via Resend, SMS via Twilio, HA notifications)
-- All Postgres schemas prefixed with `navi_`
-- All Vault paths prefixed with `secret/data/navi/`
-- All NATS subjects prefixed with `navi.>`
+- All Postgres schemas, which MUST be prefixed with `navi_`
+- All Vault paths, which MUST be prefixed with `secret/data/navi/`
+- All NATS subjects, which MUST be prefixed with `navi.>`
 
 **Navi does not own:**
 - Home automation (ruby-core)
@@ -93,10 +93,17 @@ owns a distinct set of NATS subjects and Postgres tables.
   ruby-core is unavailable, Navi's internal event bus is unavailable.
   This is accepted as a practical tradeoff for a single-node homelab.
   The NATS migration to Foundation is flagged as future work in
-  ADR-002.
+  ADR-0002.
 - Navi takes a runtime dependency on Foundation's Postgres instance.
   This is consistent with ruby-core's existing dependency and is
   accepted.
+
+**Neutral:**
+- The repository name "navi" is a branding choice with no technical
+  implications. It can be changed without affecting system behavior.
+- The scope charter mirrors the existing boundary discipline in
+  Foundation and ruby-core; no new organizational pattern is
+  introduced.
 
 ## Alternatives Considered
 

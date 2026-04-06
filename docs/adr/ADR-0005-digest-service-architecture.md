@@ -1,4 +1,4 @@
-# ADR-005: Digest Service Architecture
+# ADR-0005: Digest Service Architecture
 
 ## Status
 Accepted
@@ -17,7 +17,7 @@ digests for delivery.
 This ADR documents the internal architecture of the digest service:
 its components, their responsibilities, how they communicate, and the
 configuration model for content sources. Delivery (how the digest
-reaches the user) is addressed separately in ADR-006.
+reaches the user) is addressed separately in ADR-0006.
 
 ## Decision
 
@@ -30,7 +30,7 @@ a standard Go service with distinct internal packages per component:
 services/digest/
 ├── cmd/
 │   ├── digest/          # main binary
-│   └── smoketest/       # smoke test binary (see ADR-003)
+│   └── smoketest/       # smoke test binary (see ADR-0003)
 ├── internal/
 │   ├── collector/       # RSS polling and article fetching
 │   ├── enricher/        # entity extraction and embedding generation
@@ -61,10 +61,10 @@ Polls configured RSS feeds and fetches article content. Responsibilities:
   cookie, others) using credentials from Vault
 - Deduplicates by URL before publishing -- articles already in Postgres
   are silently dropped
-- Publishes a CloudEvents envelope to `navi.{env}.articles.collected`
+- MUST publish a CloudEvents envelope to `navi.{env}.articles.collected`
   for each new article
 
-The collector does not summarize, score, or enrich. It fetches and
+The collector MUST NOT summarize, score, or enrich. It fetches and
 publishes. All downstream intelligence is the responsibility of other
 components.
 
@@ -161,7 +161,11 @@ feeds:
 
 ### Claude API Integration
 
-All Claude API calls use the `claude-sonnet-4-20250514` model.
+The active Claude model MUST be configured in Vault at
+`secret/data/navi/{env}/anthropic` under the key `model`. It MUST
+NOT be hardcoded in application code. The model SHOULD be the current
+Anthropic Sonnet-tier model and MUST be updated in Vault when a new
+model generation is released.
 The summarizer uses two distinct prompt patterns:
 
 **Relevance scoring prompt** -- structured output, returns JSON:
@@ -231,6 +235,13 @@ User: {list of article titles and summaries}
   summarized. At typical RSS volumes (~200-400 articles/day across
   all feeds), with relevance scoring filtering to ~20-30 candidates
   before summarization, daily API cost is estimated at under $0.10.
+
+**Neutral:**
+- The feeds.yaml hot-reload pattern using SIGHUP is consistent with
+  how Vault secrets are reloaded across all Navi services; no new
+  operational pattern is introduced.
+- The robfig/cron library is a lightweight, well-maintained dependency;
+  it does not affect the architectural shape of the scheduler.
 
 ## Alternatives Considered
 

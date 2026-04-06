@@ -1,4 +1,4 @@
-# ADR-007: SMS Security
+# ADR-0007: SMS Security
 
 ## Status
 Accepted
@@ -15,7 +15,7 @@ adding Rolodex entries, and future actions as the system grows. This
 makes the inbound SMS surface a meaningful attack vector that requires
 explicit security controls.
 
-ADR-006 documents the delivery and inbound channel abstraction and
+ADR-0006 documents the delivery and inbound channel abstraction and
 mentions Twilio signature validation as a protection mechanism. That
 control is necessary but not sufficient. This ADR documents the
 complete threat model for the SMS channel and the controls applied
@@ -106,10 +106,10 @@ without a near-real-time interception capability.
 
 ### Control 1: Twilio Request Signature Validation
 
-Every inbound request to `POST /webhooks/twilio/inbound` is validated
-against the `X-Twilio-Signature` header before any other processing.
-Requests that fail validation are rejected with a 403. This is
-implemented using the official Twilio Go helper library.
+Every inbound request to `POST /webhooks/twilio/inbound` MUST be
+validated against the `X-Twilio-Signature` header before any other
+processing. Requests that fail validation MUST be rejected with a 403.
+This MUST be implemented using the official Twilio Go helper library.
 
 Validation is performed against the full public URL of the webhook
 endpoint (including scheme and path) as Twilio constructs the
@@ -139,8 +139,8 @@ Vault path: secret/data/navi/{env}/sms/authorized_numbers
 Format:     comma-separated E.164 numbers, e.g. +12025550101,+12025550102
 ```
 
-Messages from numbers not on the allowlist are silently dropped.
-No response is sent to the unauthorized sender. Rationale: responding
+Messages from numbers not on the allowlist MUST be silently dropped.
+No response MUST NOT be sent to the unauthorized sender. Rationale: responding
 with any message -- even a rejection -- confirms that the service
 exists and is listening. Silent drop provides no information to an
 attacker while logging the attempt internally for awareness.
@@ -151,8 +151,9 @@ to `navi.{env}.security.events` for observability.
 
 ### Control 3: Replay Prevention
 
-The webhook handler rejects any request with an `X-Twilio-Timestamp`
-value older than 5 minutes relative to server time. This is enforced
+The webhook handler MUST reject any request with an
+`X-Twilio-Timestamp` value older than 5 minutes relative to server
+time. This is enforced
 as part of signature validation via the Twilio helper library. Server
 time is synchronized via NTP.
 
@@ -211,6 +212,13 @@ accepted:
   should be provided to test that the authorized number can reach
   the webhook correctly.
 - SIM swap risk is accepted and cannot be fully mitigated in software.
+
+**Neutral:**
+- E.164 is the international standard for phone number format;
+  adopting it creates no additional complexity and enables future
+  international number support without format changes.
+- The 5-minute timestamp replay window is Twilio's own documented
+  recommendation; it is not a Navi-specific security decision.
 
 ## Alternatives Considered
 

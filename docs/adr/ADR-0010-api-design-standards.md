@@ -1,4 +1,4 @@
-# ADR-010: API Design Standards
+# ADR-0010: API Design Standards
 
 ## Status
 Accepted
@@ -24,10 +24,11 @@ endpoint provides.
 
 ### Spec-First Design
 
-All Navi HTTP APIs are designed spec-first using OpenAPI 3.1. The
-OpenAPI specification is written before implementation begins and
-lives in the repository alongside the service it describes. The spec
-is the authoritative contract for the API -- not the implementation.
+All Navi HTTP APIs MUST be designed spec-first using OpenAPI 3.1. The
+OpenAPI specification MUST be written before implementation begins and
+MUST live in the repository alongside the service it describes. The
+spec MUST be the authoritative contract for the API -- not the
+implementation.
 
 Spec files live at:
 ```
@@ -35,7 +36,7 @@ services/{service}/api/openapi.yaml
 ```
 
 The spec is validated in CI as part of the pre-commit and pipeline
-checks (ADR-012). A spec that fails validation blocks the build.
+checks (ADR-0012). A spec that fails validation blocks the build.
 
 ### Code Generation
 
@@ -80,7 +81,7 @@ an operational requirement.
 
 ### Baseline Endpoint Behaviors
 
-Every Navi HTTP endpoint provides the following baseline behaviors:
+Every Navi HTTP endpoint MUST provide the following baseline behaviors:
 
 **Request ID**
 Every request is assigned a unique request ID. If the `X-Request-ID`
@@ -115,14 +116,14 @@ in the service. They are included in the OpenAPI spec as an enum
 on the error response schema.
 
 **Timeout**
-All inbound HTTP handlers enforce a request timeout of 30 seconds
+All inbound HTTP handlers MUST enforce a request timeout of 30 seconds
 via context deadline. The Twilio webhook handler enforces a stricter
 5-second timeout on the initial response (Twilio requires a fast
 acknowledgement); processing continues asynchronously after the
 200 is returned.
 
 **OTEL Instrumentation**
-All HTTP handlers are wrapped with the OTEL HTTP server middleware
+All HTTP handlers MUST be wrapped with the OTEL HTTP server middleware
 from `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp`.
 This produces a server span for every request automatically, without
 per-handler instrumentation boilerplate.
@@ -220,6 +221,14 @@ to its role as an externally-called endpoint:
 - Spec-first requires discipline. The temptation to implement first
   and write the spec later must be resisted. CI validation of the spec
   against the implementation helps enforce this.
+
+**Neutral:**
+- OpenAPI 3.1 is the current specification version; the choice is
+  constrained by tooling support and carries no architectural risk
+  relative to 3.0.
+- The Swagger UI container is an internal development aid; it has no
+  production footprint and is not exposed via Traefik to external
+  traffic.
 
 ## Alternatives Considered
 

@@ -1,4 +1,4 @@
-# ADR-013: Operational Standards
+# ADR-0013: Operational Standards
 
 ## Status
 Accepted
@@ -69,7 +69,7 @@ deletion via a Makefile target when the user chooses to remove
 a record.
 
 **NATS JetStream**
-Retention is defined per stream in ADR-011:
+Retention is defined per stream in ADR-0011:
 - Processing subjects: 24 hours
 - Error and security subjects: 7 days
 
@@ -112,17 +112,10 @@ pg_dump \
 
 **Offsite backup**
 Local backups on the same node as the database are insufficient --
-a node failure destroys both. Backups are rsync'd daily to a
-secondary location. Acceptable secondary locations in preference
-order:
-1. A separate physical machine on the local network (NAS if
-   available)
-2. An encrypted rclone sync to cloud storage (Backblaze B2 or
-   similar -- low cost, simple)
-
-The offsite sync runs immediately after the local backup completes.
-Failure of the offsite sync triggers a warning alert (ADR-009) but
-does not block normal operation.
+a node failure destroys both. Backups MUST be synced daily to
+OneDrive via `rclone`. The offsite sync MUST run immediately after
+the local backup completes. Failure of the offsite sync triggers a
+warning alert (ADR-0009) but MUST NOT block normal operation.
 
 **Recovery targets**
 ```
@@ -172,9 +165,9 @@ Vault tokens:        Per Foundation rotation policy
 4. Verify the service is functioning (health check, test send)
 5. Revoke the old credential in the external service
 
-Services are designed to reload credentials from Vault on SIGHUP
-rather than at startup only. This enables zero-downtime rotation
-without a container restart.
+Services MUST reload credentials from Vault on SIGHUP rather than
+at startup only. This enables zero-downtime rotation without a
+container restart.
 
 A `make rotate-secret SERVICE=resend ENV=prod` Makefile target
 guides the rotation procedure interactively.
@@ -188,7 +181,7 @@ using the `updated_at` timestamp on Vault secret metadata.
 ### Dependency Maintenance
 
 **Vulnerability scanning**
-`govulncheck` runs in CI on every push (ADR-012) and on a weekly
+`govulncheck` runs in CI on every push (ADR-0012) and on a weekly
 GitHub Actions schedule targeting the main branch. The weekly scan
 catches vulnerabilities that appear in existing dependencies between
 code changes.
@@ -236,11 +229,11 @@ make test-recovery                # test recovery procedure (destructive
 
 ### Operational Runbook
 
-A `docs/RUNBOOK.md` documents the response procedure for each
-defined alert condition (cross-referencing ADR-009) and each
-operational task. It is the first thing to read when something
-goes wrong. It is kept up to date as a condition of closing any
-incident, however minor.
+`docs/runbooks/` documents the response procedure for each defined
+alert condition (cross-referencing ADR-0009) and each operational
+task. It is the first place to look when something goes wrong. It
+MUST be kept up to date as a condition of closing any incident,
+however minor.
 
 ## Consequences
 
@@ -265,6 +258,14 @@ incident, however minor.
   destroying and restoring a dev environment. This is uncomfortable
   but necessary. An untested backup is not a backup.
 
+**Neutral:**
+- The weekly pruning schedule (Sunday 2:00am) is chosen to avoid
+  the daily digest window; the specific time carries no architectural
+  significance and can be adjusted without a code change.
+- golang-migrate is already established as the migration tool in
+  ADR-0002; the retention policies defined here require no new
+  migration tooling.
+
 ## Alternatives Considered
 
 **Automated secret rotation via Vault dynamic secrets**
@@ -281,7 +282,7 @@ more operational complexity. A 24-hour RPO is acceptable for this
 use case.
 
 **Automated dependency updates via Dependabot auto-merge**
-Rejected. Consistent with ADR-012, dependency updates are reviewed
+Rejected. Consistent with ADR-0012, dependency updates are reviewed
 deliberately. Automatic merges of dependency updates have caused
 production incidents in larger projects. Manual monthly review is
 the right balance for a system of this scale.

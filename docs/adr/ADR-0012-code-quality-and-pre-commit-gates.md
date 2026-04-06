@@ -1,4 +1,4 @@
-# ADR-012: Code Quality and Pre-Commit Gates
+# ADR-0012: Code Quality and Pre-Commit Gates
 
 ## Status
 Accepted
@@ -24,11 +24,11 @@ define the quality floor for all code in the navi repository.
 
 ### Pre-Commit Framework
 
-Pre-commit hooks are managed using the `pre-commit` framework
-(pre-commit.com). Hook configuration lives in `.pre-commit-config.yaml`
-at the repository root. All developers (and all agents operating
-on the repository) must have pre-commit installed and hooks
-initialized via `pre-commit install`.
+Pre-commit hooks MUST be managed using the `pre-commit` framework
+(pre-commit.com). Hook configuration MUST live in
+`.pre-commit-config.yaml` at the repository root. All developers
+(and all agents operating on the repository) MUST have pre-commit
+installed and hooks initialized via `pre-commit install`.
 
 The Makefile provides a target for this:
 ```
@@ -135,7 +135,7 @@ scope: digest, delivery, intent, store, monitoring, infra, etc.
 Examples:
 feat(digest): add weekly trend synthesis to summarizer
 fix(collector): handle feed timeout without dropping subsequent feeds
-docs(adr): add ADR-012 code quality standards
+docs(adr): add ADR-0012 code quality standards
 ```
 
 Conventional Commits enable automated changelog generation and
@@ -181,7 +181,7 @@ fails the build.
 go test ./... -race -coverprofile=coverage.out
 ```
 
-All tests run with the race detector enabled. A test suite that
+All tests MUST run with the race detector enabled. A test suite that
 passes without the race detector but fails with it indicates a
 real concurrency bug. Coverage is reported but not gated -- a
 coverage threshold creates perverse incentives to write low-value
@@ -210,7 +210,7 @@ as warnings and reviewed in the PR.
 A custom CI step verifies that generated Go types (from OpenAPI
 and JSON Schema) are consistent with their source specs. If a spec
 has changed but the generated files have not been regenerated, the
-build fails. This enforces the spec-first discipline from ADR-010.
+build fails. This enforces the spec-first discipline from ADR-0010.
 
 ```
 make check-generated
@@ -235,7 +235,7 @@ and approves it. No agent commits directly to main.
 Go modules are the dependency management mechanism. The following
 policies apply:
 
-- `go.sum` is always committed
+- `go.sum` MUST always be committed
 - Dependencies are updated deliberately, not automatically. No
   Dependabot auto-merge for dependency updates.
 - New dependencies require a comment in the PR explaining why the
@@ -267,6 +267,12 @@ between code changes.
 - The `no-commit-to-branch` hook blocks direct commits to main,
   which means even small one-line fixes require a PR. This is
   intentional -- the PR is the review checkpoint, not an obstacle.
+
+**Neutral:**
+- The pre-commit framework runs locally on the developer's machine;
+  it does not affect the runtime behavior of Navi in any environment.
+- Conventional Commits constrains only the format of commit subject
+  lines; it does not restrict commit size, scope, or content.
 
 ## Alternatives Considered
 

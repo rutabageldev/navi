@@ -1,4 +1,4 @@
-# ADR-006: Delivery and Inbound Channel Abstraction
+# ADR-0006: Delivery and Inbound Channel Abstraction
 
 ## Status
 Accepted
@@ -32,8 +32,8 @@ confirmed prior to this ADR):
 
 ### Outbound Delivery Abstraction
 
-All outbound delivery is handled by a `delivery` package within each
-service that requires it (initially the digest service). The delivery
+All outbound delivery MUST be handled by a `delivery` package within
+each service that requires it (initially the digest service). The delivery
 package defines a `Payload` interface:
 
 ```go
@@ -51,9 +51,8 @@ type Section struct {
 ```
 
 A `Dispatcher` accepts a `Payload` and routes it to one or more
-configured `Channel` implementations. Adding a new output format
-(audio, HA push) is a new `Channel` implementation -- nothing else
-changes.
+configured `Channel` implementations. New output formats MUST be implemented as new `Channel`
+implementations -- nothing else changes.
 
 ```go
 type Channel interface {
@@ -143,9 +142,9 @@ Supported intents in v1:
 - `rolodex_add` -- add a person to the Rolodex
 - `unknown` -- Navi responds asking for clarification
 
-All intent handlers follow the principle from ADR-001: Navi acts on
-explicit direction only. Every handled intent sends a confirmation SMS
-back to the user before taking action.
+All intent handlers MUST follow the principle from ADR-0001: Navi acts
+on explicit direction only. Every handled intent MUST send a
+confirmation SMS back to the user before taking action.
 
 ### Home Assistant Notification Channel
 
@@ -220,6 +219,13 @@ routes payloads to channels based on event type.
   is acceptable. If latency becomes problematic, a lightweight
   keyword-based pre-filter can reduce Claude API calls for common
   intents.
+
+**Neutral:**
+- The Payload/Channel interface pattern is standard Go interface
+  composition; it adds no runtime overhead and does not constrain how
+  individual channel implementations work internally.
+- The TwiML empty response format (`<Response></Response>`) is
+  Twilio's required contract; it is not a design choice.
 
 ## Alternatives Considered
 
