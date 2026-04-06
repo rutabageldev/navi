@@ -19,13 +19,28 @@ repos:
       - id: no-commit-to-branch
         args: [--branch=main]
 
-  # Go formatting and vetting
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
+  # Go formatting, vetting, and import ordering.
+  # Local hooks are used instead of dnephin/pre-commit-golang because this repo
+  # uses a go.work workspace; passing individual file paths to go vet does not
+  # work correctly in that context.
+  - repo: local
     hooks:
       - id: go-fmt
+        name: go fmt
+        language: system
+        entry: gofmt -l -w
+        types: [go]
       - id: go-vet
+        name: go vet
+        language: system
+        entry: bash -c './scripts/govet.sh'
+        pass_filenames: false
+        types: [go]
       - id: go-imports
+        name: goimports
+        language: system
+        entry: goimports -l -w
+        types: [go]
 
   # OpenAPI spec validation (runs check-jsonschema with the OAS 3.1 schema)
   - repo: local

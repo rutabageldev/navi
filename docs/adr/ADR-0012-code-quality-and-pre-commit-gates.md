@@ -168,13 +168,10 @@ golangci-lint runs with the following linters enabled:
 linters:
   enable:
     - errcheck        # unchecked errors
-    - gosimple        # simplification suggestions
     - govet           # correctness issues
     - ineffassign     # unused assignments
-    - staticcheck     # static analysis
+    - staticcheck     # static analysis (absorbs gosimple in v2)
     - unused          # unused code
-    - gofmt           # formatting
-    - goimports       # import ordering
     - gosec           # security issues
     - bodyclose       # unclosed HTTP response bodies
     - contextcheck    # improper context usage
@@ -182,7 +179,17 @@ linters:
     - exhaustive      # missing switch cases on enums
     - godot           # comment formatting
     - misspell        # spelling errors
+
+formatters:
+  enable:
+    - gofmt           # formatting
+    - goimports       # import ordering
 ```
+
+Note: golangci-lint v2 separates formatters from linters. `gofmt` and
+`goimports` MUST be listed under `formatters.enable`, not `linters.enable`.
+`gosimple` was merged into `staticcheck` in v2 and MUST NOT appear as a
+standalone linter.
 
 The `gosec` linter specifically targets security anti-patterns:
 hardcoded credentials, unsafe integer conversions, SQL injection

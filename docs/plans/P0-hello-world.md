@@ -296,7 +296,7 @@ isolation for this hook.
 
 ---
 
-## Phase 2 — services/internal Package Stubs
+## Phase 2 — services/internal Package Stubs ✓ COMPLETE (2026-04-06)
 
 **Purpose:** Implement the shared internal packages with enough
 substance to compile cleanly, establish real connections to external
@@ -410,16 +410,27 @@ go work sync
 
 ### Exit criteria
 
-- [ ] `go build ./services/internal/...` succeeds with no errors
-- [ ] `go vet ./services/internal/...` produces no output
-- [ ] `go test -race ./services/internal/...` passes (even with no test
+- [x] `go build ./services/internal/...` succeeds with no errors
+- [x] `go vet ./services/internal/...` produces no output
+- [x] `go test -race ./services/internal/...` passes (even with no test
       files — the compilation must succeed)
-- [ ] `golangci-lint run ./services/internal/...` produces no blocking
+- [x] `golangci-lint run ./services/internal/...` produces no blocking
       findings
 - [ ] Manual verification: a small `main.go` scratch file (not
       committed) can import and call `vault.NewClient`,
       `postgres.Connect`, `nats.Connect`, and `telemetry.InitTracer`
       against real Foundation services without panicking
+
+### Implementation notes
+
+**golangci-lint v2 config changes:** golangci-lint v2 (installed: v2.11.4)
+requires formatters in a separate `formatters.enable` block rather than
+`linters.enable`. `gosimple` was removed as it is absorbed by `staticcheck`
+in v2. ADR-0012 updated to reflect the correct v2 configuration.
+
+**golangci-lint not installed by default:** Must be installed manually
+(`curl -sSfL ... | sh -s -- -b ~/bin latest`). Consider adding to
+`make setup` when the homelab node is the primary dev machine.
 
 ---
 
