@@ -51,7 +51,7 @@ logic. These belong to P1 and later.
 
 ---
 
-## Phase 1 — Repo Baseline
+## Phase 1 — Repo Baseline ✓ COMPLETE (2026-04-06, commit 12a2fc7)
 
 **Purpose:** Establish the quality gates, module structure, tooling
 configuration, and version management files that every subsequent phase
@@ -273,14 +273,26 @@ and begin with `#!/usr/bin/env bash` and `set -euo pipefail`.
 
 ### Exit criteria
 
-- [ ] `pre-commit install` completes without error
-- [ ] `pre-commit run --all-files` passes on the committed files (the
+- [x] `pre-commit install` completes without error
+- [x] `pre-commit run --all-files` passes on the committed files (the
       only Go file at this point is go.mod/go.work; no source to lint)
-- [ ] `go work sync` produces no errors
-- [ ] `.versions.json`, `.last-deployed-version`, and
+- [x] `go work sync` produces no errors
+- [x] `.versions.json`, `.last-deployed-version`, and
       `release-please-config.json` are committed to main
-- [ ] `make setup` completes without error
-- [ ] `make status` runs without error (empty output is fine)
+- [x] `make setup` completes without error
+- [x] `make status` runs without error (empty output is fine)
+
+### Implementation notes
+
+**OpenAPI hook:** The `check-openapi` hook ID referenced in ADR-0012
+does not exist in the `python-jsonschema/check-jsonschema` repository.
+Replaced with a local hook running `check-jsonschema --schemafile
+https://spec.openapis.org/oas/3.1/schema/2022-10-07` directly. ADR-0012
+updated to reflect the correct implementation. Behavior is identical.
+
+`check-jsonschema` must be installed system-wide (`pip install
+check-jsonschema`) — it is not managed by pre-commit's environment
+isolation for this hook.
 
 ---
 

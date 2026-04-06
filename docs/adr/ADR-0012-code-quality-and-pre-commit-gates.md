@@ -42,7 +42,7 @@ The following hooks run on every commit in the order listed:
 **Secrets Scanning**
 ```yaml
 - repo: https://github.com/gitleaks/gitleaks
-  rev: v8.18.0
+  rev: v8.24.3
   hooks:
     - id: gitleaks
 ```
@@ -59,7 +59,7 @@ the pattern is safe.
 **File Hygiene**
 ```yaml
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.5.0
+  rev: v5.0.0
   hooks:
     - id: trailing-whitespace
     - id: end-of-file-fixer
@@ -91,15 +91,28 @@ correctness issues.
 
 **OpenAPI Spec Validation**
 ```yaml
-- repo: https://github.com/python-jsonschema/check-jsonschema
-  rev: 0.28.0
+- repo: local
   hooks:
-    - id: check-openapi
-      files: ^services/.*/api/openapi\.yaml$
+    - id: validate-openapi
+      name: Validate OpenAPI specs
+      language: system
+      entry: check-jsonschema --schemafile https://spec.openapis.org/oas/3.1/schema/2022-10-07
+      types: [yaml]
+      files: services/.*/api/openapi\.yaml$
 ```
 
-OpenAPI specs are validated against the OpenAPI 3.1 schema on every
+OpenAPI specs are validated against the OAS 3.1 JSON Schema on every
 commit that modifies a spec file. An invalid spec does not commit.
+
+The `check-jsonschema` CLI tool (pip: `check-jsonschema`) MUST be
+installed on the developer's machine. It is not managed by the
+pre-commit framework's environment isolation for this hook because
+it runs as a system-language local hook.
+
+Note: The `check-openapi` hook ID previously referenced in this ADR
+does not exist in the `python-jsonschema/check-jsonschema` repository.
+The local hook approach above is the correct implementation and
+produces equivalent behavior.
 
 **JSON Schema Validation**
 ```yaml
@@ -119,7 +132,7 @@ commit that modifies them.
 **Commit Message Format**
 ```yaml
 - repo: https://github.com/commitizen-tools/commitizen
-  rev: v3.13.0
+  rev: v4.6.0
   hooks:
     - id: commitizen
 ```
