@@ -1,0 +1,55 @@
+repos:
+  # Secret scanning — must be first
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: no-commit-to-branch
+        args: [--branch=main]
+
+  # Go formatting and vetting
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-imports
+
+  # OpenAPI spec validation (runs check-jsonschema with the OAS 3.1 schema)
+  - repo: local
+    hooks:
+      - id: validate-openapi
+        name: Validate OpenAPI specs
+        language: system
+        entry: check-jsonschema --schemafile https://spec.openapis.org/oas/3.1/schema/2022-10-07
+        types: [yaml]
+        files: services/.*/api/openapi\.yaml$
+
+  # Event schema validation (local hook)
+  - repo: local
+    hooks:
+      - id: validate-event-schemas
+        name: Validate event schemas
+        language: system
+        entry: make validate-schemas
+        pass_filenames: false
+        files: docs/events/schemas/.*\.json$
+
+  # Conventional Commits enforcement
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.6.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
