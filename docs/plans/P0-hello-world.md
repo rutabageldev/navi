@@ -204,13 +204,18 @@ ENV        ?= dev
 VERSION    ?= $(shell cat .last-deployed-version)
 SERVICE    ?= digest
 
-.PHONY: setup dev test lint build deploy smoketest healthcheck \
-        rollback migrate vault-seed logs status check-generated \
-        validate-schemas
+.PHONY: setup setup-infra dev test lint build deploy smoketest \
+        healthcheck rollback migrate vault-seed logs status \
+        check-generated validate-schemas
 
 setup:
     pre-commit install
     pre-commit install --hook-type commit-msg
+
+setup-infra:
+    # Create the external Docker network used by prod and staging compose files.
+    # Idempotent: exits cleanly if the network already exists.
+    docker network inspect navi >/dev/null 2>&1 || docker network create navi
 
 dev:
     NAVI_ENV=dev docker compose -f docker-compose.dev.yml up
@@ -510,7 +515,7 @@ components:
 
 Run oapi-codegen against the spec:
 ```bash
-go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest
+go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 oapi-codegen \
   --config services/digest/api/oapi-codegen.yaml \
   services/digest/api/openapi.yaml
@@ -769,6 +774,23 @@ networks:
     driver: bridge
 ```
 
+#### 3.9 — Create external Docker network on homelab node
+
+The prod and staging compose files declare `navi` as an external
+network. This network MUST be created manually on the homelab node
+before the first deploy. It is a one-time setup step.
+
+```bash
+docker network create navi
+```
+
+This is wrapped in a Makefile target `make setup-infra` (see Phase 1.9)
+which is idempotent: it creates the network only if it does not already
+exist.
+
+Run this step on the homelab node before Phase 4.3 (first staging
+container start).
+
 ### Exit criteria
 
 - [ ] `go build ./services/digest/cmd/digest/` succeeds
@@ -783,6 +805,8 @@ networks:
       all three checks reporting "ok" and a `version` field present
 - [ ] `docker compose down` cleans up all dev containers
 - [ ] `make check-generated` confirms oapi-codegen output matches spec
+- [ ] The `navi` external Docker network exists on the homelab node
+      (`docker network inspect navi` returns without error)
 
 ---
 
@@ -848,8 +872,10 @@ vault kv put secret/navi/staging/postgres \
 
 **NATS (required for service startup):**
 ```bash
-vault kv put secret/navi/prod/nats url=nats://10.0.0.60:4222
-vault kv put secret/navi/staging/nats url=nats://10.0.0.60:4222
+# CONFIRM_ME: verify the actual NATS JetStream address for the ruby-core
+# instance before running vault-seed. The host below is a placeholder.
+vault kv put secret/navi/prod/nats url=nats://RUBY_CORE_HOST:4222
+vault kv put secret/navi/staging/nats url=nats://RUBY_CORE_HOST:4222
 ```
 
 **OTel Collector (required for telemetry):**
@@ -892,10 +918,17 @@ vault kv put secret/navi/staging/sms/authorized_numbers \
   numbers="+1CHANGEME"
 ```
 
-Note: The Vault KV path format above uses `secret/navi/...`. The full
-KV v2 path used by the API is `secret/data/navi/...`. The `vault kv
-put` CLI command handles this automatically. Ensure the service uses
-the `data/` prefix when calling the Vault API directly.
+**Vault path format — two forms, one backing store:**
+
+| Context | Path format | Example |
+|---------|------------|---------|
+| `vault kv put` / `vault kv get` CLI | `secret/navi/{env}/{service}` | `secret/navi/prod/postgres` |
+| Go code calling the Vault HTTP API | `secret/data/navi/{env}/{service}` | `secret/data/navi/prod/postgres` |
+
+The CLI transparently inserts `data/` for KV v2 mounts. The Go client
+calls the HTTP API directly and MUST include `data/`. Both paths
+address the same stored secret. Every `GetSecret()` call in service
+code MUST use the `secret/data/...` form.
 
 The `vault-seed.sh` script must be idempotent (safe to run multiple
 times). It MUST NOT contain actual secret values — it seeds placeholder
@@ -950,30 +983,38 @@ that modifies anything outside the Navi repository.
 
 ### Tasks
 
-#### 5.1 — Foundation Prometheus scrape config
+#### 5.1 — Verify Foundation OTel Collector → Prometheus pipeline
 
-Add to the Foundation `prometheus.yml` scrape_configs:
-```yaml
-- job_name: navi
-  static_configs:
-    - targets:
-        - '10.0.40.10:8080'   # prod digest
-        - '10.0.40.10:8081'   # staging digest
-  relabel_configs:
-    - source_labels: [__address__]
-      regex: '.*:8080'
-      target_label: navi_env
-      replacement: prod
-    - source_labels: [__address__]
-      regex: '.*:8081'
-      target_label: navi_env
-      replacement: staging
+Per ADR-0008, Navi MUST NOT expose a `/metrics` endpoint for direct
+Prometheus scrape. Metrics flow exclusively via OTLP:
+
+```
+Navi OTEL SDK → OTLP/gRPC (port 4317) → Foundation OTel Collector
+                                                    ↓
+                                         Prometheus exporter
+                                                    ↓
+                                      Foundation Prometheus scrapes
+                                         the Collector's exporter
 ```
 
-Note: the digest service must expose a `/metrics` endpoint (add
-`promhttp.Handler()` at `/metrics` in main.go using the OTEL Prometheus
-exporter, or expose metrics via the OTEL Collector). Choose one approach
-and document it in the service README.
+**Do NOT add a `/metrics` endpoint to the digest service. Do NOT add
+a direct Prometheus scrape target pointing at Navi's service port.**
+
+Verification steps for this task:
+1. Confirm the Foundation OTel Collector config has a `prometheus`
+   exporter enabled (typically exposes metrics at `0.0.0.0:8889`).
+   If not, add it to the Foundation OTel Collector config — this is a
+   Foundation configuration change, not a Navi change.
+2. Confirm the Foundation `prometheus.yml` scrapes the Collector's
+   Prometheus exporter endpoint (e.g. `10.0.40.10:8889`). If this
+   scrape target is already present from other Foundation services,
+   no change is needed — Navi metrics flow through the same pipeline.
+3. Make a request to the staging service to generate a trace and metric
+   data point, then verify the metric appears in Prometheus.
+
+The service's OTLP endpoint is read from Vault at
+`secret/data/navi/{env}/telemetry` under the key `endpoint`
+(e.g. `10.0.40.10:4317`). This was seeded in Phase 4.2.
 
 #### 5.2 — Foundation OTel Collector config
 
@@ -1022,11 +1063,12 @@ recreated if Uptime Kuma is restarted.
       Navigate from the trace in Tempo to the correlated log line in
       Loki using the trace_id field — this confirms both pipelines are
       wired
-- [ ] `navi_up` or equivalent metric is visible in Foundation Grafana
-      (Prometheus source). The exact metric name depends on the OTEL
-      metric chosen in 5.1 — either the auto-generated `up` metric from
-      Prometheus scrape or a custom `navi_up` gauge emitted by the
-      service
+- [ ] At least one Navi metric (e.g. the OTEL SDK's auto-generated
+      `http.server.request.duration` or a `process.runtime.*` metric)
+      is visible in Foundation Prometheus after making a request to the
+      staging service. Query via Foundation Grafana (Prometheus source)
+      and filter by `service.name="navi-digest"` or equivalent OTEL
+      resource attribute
 - [ ] At least one structured JSON log line from the running container
       is queryable in Foundation Loki via the Grafana Loki datasource
       using `{container=~"navi.*"}`
@@ -1047,8 +1089,11 @@ deployment with automated rollback, and SMS delivery notification.
 - Phases 1–5 complete
 - GitHub repository exists with main branch
 - Self-hosted GitHub Actions runner is registered and online
-- `GHCR_TOKEN` and other required secrets are set in GitHub repository
-  settings (see task 6.1)
+- Required secrets are set in GitHub repository settings (see task 6.1)
+
+Note: GHCR authentication uses `secrets.GITHUB_TOKEN` — no separate
+`GHCR_TOKEN` secret is needed. The workflow must have `packages: write`
+permission to push images to ghcr.io.
 
 ### Tasks
 
@@ -1116,35 +1161,50 @@ Triggers: `push` with tag matching `v[0-9]+.[0-9]+.[0-9]+`
 
 Runs on: `[self-hosted]` runner on the homelab node
 
+The workflow MUST have the following permissions block:
+```yaml
+permissions:
+  contents: write   # to commit .last-deployed-version back to main
+  packages: write   # to push images to ghcr.io
+```
+
 Steps:
 1. Checkout with full history
-2. Extract version from tag: `VERSION=${GITHUB_REF#refs/tags/}`
-3. Read `PREVIOUS_VERSION` from `.last-deployed-version`
-4. **Change detection**: identify changed services since the previous
+2. **Authenticate to GHCR** using `docker/login-action@v3`:
+   ```yaml
+   - uses: docker/login-action@v3
+     with:
+       registry: ghcr.io
+       username: ${{ github.actor }}
+       password: ${{ secrets.GITHUB_TOKEN }}
+   ```
+3. Extract version from tag: `VERSION=${GITHUB_REF#refs/tags/}`
+4. Read `PREVIOUS_VERSION` from `.last-deployed-version`
+5. **Change detection**: identify changed services since the previous
    tag (script: `scripts/detect-changes.sh $PREVIOUS_VERSION $VERSION`)
-5. For each changed service:
+6. For each changed service:
    a. Build Docker image: `docker build --build-arg VERSION=$VERSION ...`
    b. Push to ghcr.io with `:$VERSION` and `:staging` tags
-6. Deploy to staging:
+7. Deploy to staging:
    a. `NAVI_VERSION=$VERSION VAULT_TOKEN=$VAULT_TOKEN_STAGING docker compose -f docker-compose.staging.yml up -d`
    b. Run migrations: `make migrate ENV=staging`
-7. Run smoke tests: `make smoketest ENV=staging`
-8. **Staging gate**: if smoke tests fail:
+8. Run smoke tests: `make smoketest ENV=staging`
+9. **Staging gate**: if smoke tests fail:
    a. Roll back staging: `make rollback ENV=staging VERSION=$PREVIOUS_VERSION SERVICE=digest`
    b. Confirm rollback healthy: `make smoketest ENV=staging`
    c. Send rollback SMS (direct Twilio API call in the workflow)
    d. `exit 1`
-9. Promote to prod:
-   a. Re-tag image: `:prod` and `:latest`
-   b. `NAVI_VERSION=$VERSION VAULT_TOKEN=$VAULT_TOKEN_PROD docker compose -f docker-compose.yml up -d`
-   c. Run migrations: `make migrate ENV=prod`
-10. Run prod health checks: `make healthcheck ENV=prod`
-11. **Prod gate**: if health checks fail:
+10. Promote to prod:
+    a. Re-tag image: `:prod` and `:latest`
+    b. `NAVI_VERSION=$VERSION VAULT_TOKEN=$VAULT_TOKEN_PROD docker compose -f docker-compose.yml up -d`
+    c. Run migrations: `make migrate ENV=prod`
+11. Run prod health checks: `make healthcheck ENV=prod`
+12. **Prod gate**: if health checks fail:
     a. Roll back prod: `make rollback ENV=prod VERSION=$PREVIOUS_VERSION SERVICE=digest`
     b. Confirm rollback healthy: `make healthcheck ENV=prod`
     c. Send rollback SMS
     d. `exit 1`
-12. On success:
+13. On success:
     a. Update `.last-deployed-version` to `$VERSION`
     b. Commit `.last-deployed-version` to main using the GitHub Actions
        bot identity (`git config user.email "github-actions[bot]@..."`)
