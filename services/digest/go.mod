@@ -2,6 +2,8 @@ module github.com/rutabageldev/navi/services/digest
 
 go 1.25.0
 
+toolchain go1.25.8
+
 replace github.com/rutabageldev/navi/services/internal => ../internal
 
 require (

@@ -42,6 +42,19 @@ repos:
         entry: goimports -l -w
         types: [go]
 
+  # Vulnerability scanning — runs only on go.mod changes.
+  # govulncheck makes network calls to the Go vuln database; running it on every
+  # commit would be too slow. Scoping to go.mod catches newly introduced
+  # vulnerable dependencies at the moment they are added.
+  - repo: local
+    hooks:
+      - id: govulncheck-on-gomod-change
+        name: govulncheck (go.mod changes only)
+        entry: bash -c './scripts/govulncheck.sh'
+        language: system
+        files: ^services/.*/go\.mod$
+        pass_filenames: false
+
   # OpenAPI spec validation (runs check-jsonschema with the OAS 3.1 schema)
   - repo: local
     hooks:
