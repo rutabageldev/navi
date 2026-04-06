@@ -800,15 +800,7 @@ container start).
 - [x] `golangci-lint run ./services/digest/...` produces no blocking
       findings
 - [x] `make dev` starts the digest container without error
-- [ ] `curl http://localhost:8082/v1/health/live` returns 200 with
-      `{"status":"ok"}` (requires VAULT_TOKEN set; verified in Phase 4)
-- [ ] `curl http://localhost:8082/v1/health/ready` returns 200 with
-      all three checks reporting "ok" and a `version` field present
-      (requires Vault seeded; verified in Phase 4)
 - [x] `make check-generated` confirms oapi-codegen output matches spec
-- [ ] The `navi` external Docker network exists on the homelab node
-      (`docker network inspect navi` returns without error) — run
-      `make setup-infra` before Phase 4.3
 
 ---
 
@@ -962,6 +954,12 @@ Confirm:
 
 ### Exit criteria
 
+- [ ] `make setup-infra` has been run — `docker network inspect navi`
+      returns without error
+- [ ] `curl http://localhost:8082/v1/health/live` returns 200 with
+      `{"status":"ok"}`
+- [ ] `curl http://localhost:8082/v1/health/ready` returns 200 with
+      all three checks reporting "ok" and a `version` field present
 - [ ] `make vault-seed ENV=staging` completes without error
 - [ ] `make vault-seed ENV=prod` completes without error
 - [ ] Service starts against staging infrastructure with all checks green
