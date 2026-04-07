@@ -952,6 +952,80 @@ Confirm:
 4. Confirm the service remains running and `/v1/health/ready` still
    returns 200
 
+#### 4.5 — Automated Vault token renewal
+
+The Navi Vault token is a periodic token with a 90-day period. It must
+be renewed before expiry or the service loses access to all secrets and
+cannot start. Manual renewal is not acceptable — a missed renewal is a
+production outage.
+
+**Renewal script: `scripts/renew-vault-token.sh`**
+
+Create a script that:
+1. Sources `VAULT_TOKEN` and `VAULT_ADDR` from `/opt/navi/.env`
+2. Calls `vault token renew` with the Foundation CA cert
+3. Emits a structured log line (JSON) on success: include service,
+   event, new TTL, and timestamp
+4. Emits a structured log line on failure and exits non-zero so the
+   scheduler can detect the failure
+5. Is idempotent and safe to run at any time
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Source token and address from the project .env
+# shellcheck source=/dev/null
+source "$(dirname "$0")/../.env"
+
+VAULT_CACERT=/opt/foundation/vault/tls/vault-ca.crt
+
+result=$(VAULT_ADDR="$VAULT_ADDR" VAULT_TOKEN="$VAULT_TOKEN" \
+  VAULT_CACERT="$VAULT_CACERT" \
+  vault token renew -format=json 2>&1) || {
+    printf '{"service":"navi","event":"vault_token_renewal_failed","error":"%s","ts":"%s"}\n' \
+      "$result" "$(date -u +%FT%TZ)"
+    exit 1
+  }
+
+ttl=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['auth']['lease_duration'])" 2>/dev/null || echo "unknown")
+printf '{"service":"navi","event":"vault_token_renewed","ttl_seconds":%s,"ts":"%s"}\n' \
+  "$ttl" "$(date -u +%FT%TZ)"
+```
+
+**Makefile targets:**
+
+```makefile
+## renew-vault-token: Renew the Navi Vault token manually
+renew-vault-token:
+	@scripts/renew-vault-token.sh
+
+## install-cron: Install automated Vault token renewal cron job
+install-cron:
+	@(crontab -l 2>/dev/null | grep -v 'renew-vault-token'; \
+	  echo "0 6 * * 1 /opt/navi/scripts/renew-vault-token.sh >> /var/log/navi-vault-renewal.log 2>&1") \
+	  | crontab -
+	@echo "Cron job installed: weekly renewal every Monday at 06:00"
+
+## uninstall-cron: Remove automated Vault token renewal cron job
+uninstall-cron:
+	@crontab -l 2>/dev/null | grep -v 'renew-vault-token' | crontab -
+	@echo "Cron job removed"
+```
+
+**Schedule:** Weekly (every Monday at 06:00). A 90-day token renewed
+weekly gives 12+ missed renewals before expiry. This is the right
+balance between operational noise and safety margin.
+
+**Observability:** The script logs JSON to stdout. The cron job
+redirects output to `/var/log/navi-vault-renewal.log`. Foundation
+Promtail must be configured to scrape that log file and forward to
+Loki. A Grafana alert on `event="vault_token_renewal_failed"` is the
+observable failure signal. This is addressed in Phase 5.
+
+Note: The Foundation `navi` Vault policy includes `auth/token/renew-self`
+capability, which is required for this renewal to succeed.
+
 ### Exit criteria
 
 - [ ] `make setup-infra` has been run — `docker network inspect navi`
@@ -964,6 +1038,10 @@ Confirm:
 - [ ] `make vault-seed ENV=prod` completes without error
 - [ ] Service starts against staging infrastructure with all checks green
 - [ ] SIGHUP reload confirmed working (log evidence)
+- [ ] `make renew-vault-token` runs without error and logs a JSON
+      success line with a TTL field
+- [ ] `make install-cron` installs the weekly renewal job —
+      `crontab -l` shows the entry
 - [ ] No actual secrets committed to the repository
 - [ ] `vault.NewClient`, `postgres.Connect`, `nats.Connect`, and
       `telemetry.InitTracer` all succeed against real Foundation services
