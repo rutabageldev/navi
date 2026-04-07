@@ -804,6 +804,110 @@ container start).
 
 ---
 
+## Phase 3b — NATS mTLS + NKEY Authentication
+
+**Purpose:** Correct a gap in Phase 2. The ruby-core NATS server requires
+NKEY signing and mutual TLS from all clients. The `services/internal/nats`
+package was written against an assumed plaintext unauthenticated connection
+and will be rejected by the real server. This phase fixes that before Phase
+4's live connectivity checks.
+
+Discovered during Phase 4 pre-flight: ruby-core NATS binds on
+`127.0.0.1:4222` (dev) and `127.0.0.1:4223` (prod), uses mTLS
+(`require: true` in `nats.conf`), and authenticates clients via NKEY
+public key allowlist (per ruby-core ADR-0017).
+
+### Entry criteria
+- Phase 3 complete
+- Foundation has provisioned a Navi NKEY and client TLS cert and
+  seeded Vault at the paths defined in task 3b.3 below
+
+### Tasks
+
+#### 3b.1 — Update `services/internal/nats/nats.go`
+
+Replace `Connect(url string)` with `Connect(cfg Config)`. Add a `Config`
+struct:
+
+```go
+type Config struct {
+    URL      string // e.g. "tls://127.0.0.1:4222"
+    NKeySeed string // NKEY seed for authentication
+    TLSCert  []byte // PEM client certificate
+    TLSKey   []byte // PEM client private key
+    TLSCA    []byte // PEM CA certificate
+}
+```
+
+Implement NKEY auth via `nats.Nkey()` option and mTLS via `nats.Secure()`
+with a `tls.Config` built from the cert material, following the pattern
+in ruby-core's `boot.ConnectNATS()`. Add `github.com/nats-io/nkeys` as
+a direct dependency (`go get github.com/nats-io/nkeys`).
+
+All other functions (`JetStream`, `EnsureStream`, `HealthCheck`) are
+unchanged.
+
+#### 3b.2 — Update `services/digest/cmd/digest/main.go`
+
+Replace the single `GetSecret(..., "url")` NATS call with a
+`loadNATSConfig()` helper that reads:
+
+- `secret/data/navi/{env}/nats` → fields `url`, `seed`
+- `secret/data/navi/{env}/nats/tls` → fields `cert`, `key`, `ca`
+
+Returns `internalnats.Config`. Pass the result to `internalnats.Connect()`.
+
+#### 3b.3 — Vault path additions (requires Foundation)
+
+Two new secrets per environment. These MUST be seeded by Foundation
+before Phase 4.3 can succeed:
+
+| Secret path | Fields | Provisioned by |
+|---|---|---|
+| `secret/navi/{env}/nats` | `url`, `seed` | Foundation (NKEY gen) |
+| `secret/navi/{env}/nats/tls` | `cert`, `key`, `ca` | Foundation (cert issuance) |
+
+The `url` values are:
+- dev: `tls://127.0.0.1:4222`
+- prod/staging: `tls://127.0.0.1:4223`
+
+Foundation must also:
+- Register the Navi NKEY public key in the ruby-core NATS server config
+  (authorized users allowlist)
+- Sign the client cert with the same CA used for the NATS server
+
+Update the Phase 4.2 `vault-seed.sh` to seed `url` in
+`secret/navi/{env}/nats` (placeholder `seed` value); real seed and TLS
+material are written directly by Foundation, not via vault-seed.
+
+#### 3b.4 — Update ADR-0002
+
+Add a section documenting the NATS auth requirement. ADR-0002 currently
+describes NATS JetStream as the event bus but is silent on the
+authentication mechanism. It MUST document:
+
+- Clients authenticate via NKEY signing (seed stored in Vault)
+- All connections use mTLS (client cert issued by NATS CA, stored in Vault)
+- Vault paths for credentials: `secret/navi/{env}/nats` and
+  `secret/navi/{env}/nats/tls`
+- The connection pattern follows ruby-core's `boot.ConnectNATS()` as
+  the reference implementation
+
+### Exit criteria
+
+- [ ] `services/internal/nats` compiles with the new `Config`-based API
+- [ ] `go vet ./services/internal/...` and `go test -race ./services/internal/...`
+      pass
+- [ ] `go vet ./services/digest/...` and `go test -race ./services/digest/...`
+      pass
+- [ ] `golangci-lint run` produces no new findings
+- [ ] ADR-0002 documents NATS auth (NKEY + mTLS)
+- [ ] Foundation has provisioned NKEY, client cert, and seeded Vault
+      (prerequisite for Phase 4.3 — not required to commit code)
+- [ ] `make check-generated` still passes
+
+---
+
 ## Phase 4 — Vault Seeding
 
 **Purpose:** Populate all required Vault paths for staging and
