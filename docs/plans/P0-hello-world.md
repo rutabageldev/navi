@@ -895,16 +895,16 @@ authentication mechanism. It MUST document:
 
 ### Exit criteria
 
-- [ ] `services/internal/nats` compiles with the new `Config`-based API
-- [ ] `go vet ./services/internal/...` and `go test -race ./services/internal/...`
+- [x] `services/internal/nats` compiles with the new `Config`-based API
+- [x] `go vet ./services/internal/...` and `go test -race ./services/internal/...`
       pass
-- [ ] `go vet ./services/digest/...` and `go test -race ./services/digest/...`
+- [x] `go vet ./services/digest/...` and `go test -race ./services/digest/...`
       pass
-- [ ] `golangci-lint run` produces no new findings
-- [ ] ADR-0002 documents NATS auth (NKEY + mTLS)
+- [x] `golangci-lint run` produces no new findings
+- [x] ADR-0002 documents NATS auth (NKEY + mTLS)
 - [ ] Foundation has provisioned NKEY, client cert, and seeded Vault
       (prerequisite for Phase 4.3 — not required to commit code)
-- [ ] `make check-generated` still passes
+- [x] `make check-generated` still passes
 
 ---
 
