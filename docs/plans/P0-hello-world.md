@@ -804,7 +804,7 @@ container start).
 
 ---
 
-## Phase 3b — NATS mTLS + NKEY Authentication
+## Phase 3b — NATS mTLS + NKEY Authentication ✓ COMPLETE (2026-04-07)
 
 **Purpose:** Correct a gap in Phase 2. The ruby-core NATS server requires
 NKEY signing and mutual TLS from all clients. The `services/internal/nats`
@@ -902,7 +902,7 @@ authentication mechanism. It MUST document:
       pass
 - [x] `golangci-lint run` produces no new findings
 - [x] ADR-0002 documents NATS auth (NKEY + mTLS)
-- [ ] Foundation has provisioned NKEY, client cert, and seeded Vault
+- [x] Foundation has provisioned NKEY, client cert, and seeded Vault
       (prerequisite for Phase 4.3 — not required to commit code)
 - [x] `make check-generated` still passes
 
