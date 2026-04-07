@@ -55,6 +55,34 @@ NATS JetStream. The NATS instance deployed in ruby-core is used as the
 shared event bus. All Navi subjects are namespaced under `navi.>` to
 guarantee zero collision with ruby-core subjects.
 
+**NATS Authentication and Transport**
+
+The ruby-core NATS server requires two auth mechanisms from all clients:
+
+- **NKEY authentication:** Each Navi service has an NKEY keypair. The
+  private seed is stored in Vault at `secret/navi/{env}/nats` (field:
+  `seed`). The public key is registered in the ruby-core NATS server's
+  authorized users list (via `secret/ruby-core/nats/navi-{env}`). On
+  connect, the client signs a server nonce with the seed to prove identity.
+
+- **mTLS:** All connections use TLS 1.3 with mutual certificate
+  verification. The client certificate and CA are stored in Vault at
+  `secret/navi/{env}/nats/tls` (fields: `cert`, `key`, `ca`). The CA is
+  the same CA used for all ruby-core NATS clients.
+
+Per-environment NATS addresses:
+- dev:  `tls://127.0.0.1:4222`
+- prod: `tls://127.0.0.1:4223`
+
+Credentials are fetched from Vault at startup via `loadNATSConfig()` in
+`services/digest/cmd/digest/main.go`. The connection is established via
+`services/internal/nats.Connect(Config)`, which constructs the NKEY
+signing callback and `tls.Config` from the fetched material.
+
+Subject ACLs enforced by the NATS server for Navi:
+- publish:   `navi.{env}.>`, `$JS.API.>`, `$JS.ACK.>`
+- subscribe: `navi.{env}.>`, `_INBOX.>`
+
 Polling of external sources (RSS feeds, APIs) occurs only at the
 system boundary -- in the collector component of the digest service.
 Everything downstream of the collector is event-driven. This contains

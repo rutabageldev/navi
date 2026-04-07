@@ -65,9 +65,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("loading postgres config: %w", err)
 	}
-	natsURL, err := vc.GetSecret(prefix+"/nats", "url")
+	natsCfg, err := loadNATSConfig(vc, prefix+"/nats", prefix+"/nats/tls")
 	if err != nil {
-		return fmt.Errorf("loading nats url: %w", err)
+		return fmt.Errorf("loading nats config: %w", err)
 	}
 	otlpEndpoint, err := vc.GetSecret(prefix+"/telemetry", "endpoint")
 	if err != nil {
@@ -106,8 +106,8 @@ func run() error {
 	}
 
 	// --- 7. Initialise NATS ---
-	slog.Info("connecting to nats", "url", natsURL)
-	nc, err := internalnats.Connect(natsURL)
+	slog.Info("connecting to nats", "url", natsCfg.URL)
+	nc, err := internalnats.Connect(natsCfg)
 	if err != nil {
 		return fmt.Errorf("connecting to nats: %w", err)
 	}
@@ -220,6 +220,41 @@ func loadPostgresConfig(vc *vault.Client, path string) (postgres.Config, error) 
 		Password: password,
 		Database: database,
 		Schema:   schema,
+	}, nil
+}
+
+// loadNATSConfig reads NATS connection parameters and TLS material from Vault.
+// connPath holds the url and seed fields; tlsPath holds the cert, key, and ca fields.
+func loadNATSConfig(vc *vault.Client, connPath, tlsPath string) (internalnats.Config, error) {
+	get := func(path, key string) (string, error) {
+		return vc.GetSecret(path, key)
+	}
+	url, err := get(connPath, "url")
+	if err != nil {
+		return internalnats.Config{}, err
+	}
+	seed, err := get(connPath, "seed")
+	if err != nil {
+		return internalnats.Config{}, err
+	}
+	cert, err := get(tlsPath, "cert")
+	if err != nil {
+		return internalnats.Config{}, err
+	}
+	key, err := get(tlsPath, "key")
+	if err != nil {
+		return internalnats.Config{}, err
+	}
+	ca, err := get(tlsPath, "ca")
+	if err != nil {
+		return internalnats.Config{}, err
+	}
+	return internalnats.Config{
+		URL:      url,
+		NKeySeed: seed,
+		TLSCert:  []byte(cert),
+		TLSKey:   []byte(key),
+		TLSCA:    []byte(ca),
 	}, nil
 }
 
