@@ -4,7 +4,8 @@ SERVICE    ?= digest
 
 .PHONY: setup setup-infra dev test lint build deploy smoketest \
         healthcheck rollback migrate vault-seed logs status \
-        check-generated validate-schemas
+        check-generated validate-schemas \
+        renew-vault-token install-cron uninstall-cron
 
 ## setup: Install pre-commit hooks (run once after cloning)
 setup:
@@ -74,3 +75,19 @@ check-generated:
 ## validate-schemas: Validate all event JSON Schema files
 validate-schemas:
 	./scripts/validate-schemas.sh
+
+## renew-vault-token: Renew the Navi Vault token manually
+renew-vault-token:
+	@scripts/renew-vault-token.sh
+
+## install-cron: Install automated weekly Vault token renewal cron job
+install-cron:
+	@(crontab -l 2>/dev/null | grep -v 'renew-vault-token'; \
+	  echo "0 6 * * 1 /opt/navi/scripts/renew-vault-token.sh >> /var/log/navi-vault-renewal.log 2>&1") \
+	  | crontab -
+	@echo "Cron job installed: weekly renewal every Monday at 06:00"
+
+## uninstall-cron: Remove automated Vault token renewal cron job
+uninstall-cron:
+	@crontab -l 2>/dev/null | grep -v 'renew-vault-token' | crontab -
+	@echo "Cron job removed"
