@@ -1132,25 +1132,55 @@ capability, which is required for this renewal to succeed.
 
 ### Exit criteria
 
-- [ ] `make setup-infra` has been run — `docker network inspect navi`
+- [x] `make setup-infra` has been run — `docker network inspect navi`
       returns without error
 - [ ] `curl http://localhost:8082/v1/health/live` returns 200 with
-      `{"status":"ok"}`
+      `{"status":"ok"}` — **BLOCKED: requires postgres user on Foundation**
 - [ ] `curl http://localhost:8082/v1/health/ready` returns 200 with
       all three checks reporting "ok" and a `version` field present
-- [ ] `make vault-seed ENV=staging` completes without error
-- [ ] `make vault-seed ENV=prod` completes without error
+      — **BLOCKED: requires postgres user on Foundation**
+- [x] `make vault-seed ENV=staging` completes without error
+- [x] `make vault-seed ENV=prod` completes without error
 - [ ] Service starts against staging infrastructure with all checks green
+      — **BLOCKED: requires postgres user on Foundation**
 - [ ] SIGHUP reload confirmed working (log evidence)
-- [ ] `make renew-vault-token` runs without error and logs a JSON
-      success line with a TTL field
-- [ ] `make install-cron` installs the weekly renewal job —
+      — **BLOCKED: requires service startup first**
+- [x] `make renew-vault-token` runs without error and logs a JSON
+      success line with a TTL field (90 days / 7,776,000s confirmed)
+- [x] `make install-cron` installs the weekly renewal job —
       `crontab -l` shows the entry
-- [ ] No actual secrets committed to the repository
+- [x] No actual secrets committed to the repository
 - [ ] `vault.NewClient`, `postgres.Connect`, `nats.Connect`, and
       `telemetry.InitTracer` all succeed against real Foundation services
-      (validated by the service startup in task 4.3 — no separate scratch
-      file required)
+      — **PARTIAL: vault.NewClient confirmed; postgres blocked by missing
+      Foundation user; nats and telemetry not yet reached**
+
+**Blocker — Foundation Postgres user:**
+The `navi` database user must be created on Foundation Postgres before
+the service can start. Required setup:
+
+```sql
+CREATE USER navi WITH PASSWORD '<real-password>';
+CREATE DATABASE navi;
+\c navi
+CREATE SCHEMA navi_dev;
+CREATE SCHEMA navi_staging;
+CREATE SCHEMA navi_prod;
+GRANT ALL ON SCHEMA navi_dev, navi_staging, navi_prod TO navi;
+```
+
+Then update Vault with the real password for each environment:
+```bash
+vault kv patch secret/navi/dev/postgres password=<real-password>
+vault kv patch secret/navi/staging/postgres password=<real-password>
+vault kv patch secret/navi/prod/postgres password=<real-password>
+```
+
+**Cleanup:** Orphan containers from old dev compose (navi-dev-postgres,
+navi-dev-vault, navi-dev-nats) should be removed:
+```bash
+docker compose -f docker-compose.dev.yml down --remove-orphans
+```
 
 ---
 
