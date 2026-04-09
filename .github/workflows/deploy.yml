@@ -77,21 +77,8 @@ jobs:
         if: steps.smoketest.outcome == 'failure'
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
-            curl -s -X POST \
-              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
-              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
-              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
-              --data-urlencode "To=$TWILIO_TO_NUMBER" \
-              --data-urlencode "Body=Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back." \
-              > /dev/null
-          fi
+          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back."
           exit 1
-        env:
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
-          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
 
       # ── Prod ──────────────────────────────────────────────────────────────
 
@@ -127,21 +114,8 @@ jobs:
         if: steps.healthcheck.outcome == 'failure'
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
-            curl -s -X POST \
-              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
-              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
-              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
-              --data-urlencode "To=$TWILIO_TO_NUMBER" \
-              --data-urlencode "Body=Hey, listen! Navi $VERSION prod health check FAILED — rolled back." \
-              > /dev/null
-          fi
+          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rolled back."
           exit 1
-        env:
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
-          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
 
       # ── Post-deploy ───────────────────────────────────────────────────────
 
@@ -160,17 +134,4 @@ jobs:
       - name: Send success SMS
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
-            curl -s -X POST \
-              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
-              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
-              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
-              --data-urlencode "To=$TWILIO_TO_NUMBER" \
-              --data-urlencode "Body=Hey, listen! Navi $VERSION deployed successfully." \
-              > /dev/null
-          fi
-        env:
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
-          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
+          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION deployed successfully."

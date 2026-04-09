@@ -1379,23 +1379,18 @@ Configure the following secrets in GitHub repository settings
 | Secret name | Value |
 |-------------|-------|
 | `NAVI_HOST` | `10.0.40.10` |
-| `TWILIO_ACCOUNT_SID` | Twilio account SID for SMS notifications |
-| `TWILIO_AUTH_TOKEN` | Twilio auth token for SMS notifications |
-| `TWILIO_FROM_NUMBER` | Navi Twilio number (for deployment SMS) |
-| `TWILIO_TO_NUMBER` | User mobile number (to receive deployment SMS) |
 
-**No VAULT_TOKEN secret needed.** The deploy workflow runs on the self-hosted
-runner (same machine as the service). `deploy.sh` sources `VAULT_TOKEN` from
-`/opt/navi/.env` directly. The weekly `renew-vault-token` cron keeps the token
-alive; if renewal fails, the Loki alert fires — the same signal that protects
-the running service. Storing a static token in GitHub secrets would create a
-second failure mode (stale secret) with no monitoring.
+**All sensitive credentials are managed locally via `/opt/navi/.env`**, not
+as GitHub secrets. Both `VAULT_TOKEN` and Twilio credentials are sourced from
+`.env` on the self-hosted runner at deploy time via `deploy.sh` and
+`scripts/notify-sms.sh`. This keeps the credential lifecycle in one place:
+the same `.env` file, the same weekly renewal cron, the same Loki alert path.
+Storing static tokens in GitHub secrets would create a parallel failure mode
+with no monitoring.
 
-Note: the pipeline sends deployment SMS directly via the Twilio API
-rather than through the Navi service itself — the service may not be
-available during a failed deploy. Twilio steps are skipped gracefully if
-secrets are unset. This is distinct from the in-service SMS delivery channel
-built in P1.
+Note: the pipeline sends deployment SMS via `scripts/notify-sms.sh`, which
+exits gracefully if Twilio credentials are not yet configured. This is distinct
+from the in-service SMS delivery channel built in P1.
 
 #### 6.2 — CI workflow
 
