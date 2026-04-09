@@ -1324,14 +1324,14 @@ recreated if Uptime Kuma is restarted.
 - [x] Grafana dashboard `navi.json` is committed and loads in Foundation
       Grafana without errors — visible at uid=navi-digest in the "Navi"
       folder at http://10.0.40.10:3000
-- [ ] At least one trace is visible in Foundation Tempo — not yet
-      verified (requires a longer-running staging session)
+- [ ] At least one trace is visible in Foundation Tempo — deferred to
+      Phase 6 exit criteria (requires a sustained staging deployment)
 - [ ] At least one structured JSON log line is queryable in Foundation
-      Loki using `{container_name=~"navi-digest.*"} | json` — not yet
-      verified explicitly (label is `container_name`, not `container`)
+      Loki using `{container_name=~"navi-digest.*"} | json` — deferred
+      to Phase 6 exit criteria; label is `container_name` not `container`
 - [ ] Prod health endpoints registered in Foundation Uptime Kuma under
-      a "Navi" group — manual UI step, deferred to post-Phase-6 when
-      prod CI/CD is wired
+      a "Navi" group — deferred to Phase 6 exit criteria (prod endpoint
+      only; staging monitoring not needed)
 
 ### Implementation notes (Phase 5 — 2026-04-09)
 
@@ -1568,6 +1568,14 @@ P0 smoke tests (each as a named function):
       error (even if there is nothing to roll back to)
 - [ ] `make check-generated` confirms oapi-codegen output is current
       on the deployed branch
+- [ ] At least one trace is visible in Foundation Tempo after a prod
+      health check request; navigate to the correlated Loki log line
+      via trace_id to confirm both pipelines end-to-end
+- [ ] At least one structured JSON log line from the prod container is
+      queryable in Foundation Loki: `{container_name="navi-digest-prod"} | json`
+- [ ] Prod health endpoints added to Foundation Uptime Kuma under a
+      "Navi" group: live (`http://10.0.40.10:8083/v1/health/live`, 60s)
+      and ready (`http://10.0.40.10:8083/v1/health/ready`, 60s)
 
 ---
 

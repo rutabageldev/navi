@@ -1,0 +1,180 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write  # to commit .last-deployed-version back to main
+  packages: write  # to push images to ghcr.io
+
+jobs:
+  deploy:
+    name: Build → staging → prod
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a PAT or default GITHUB_TOKEN — needed for the commit-back step.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set version
+        id: version
+        run: echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Read previous version
+        id: prev
+        run: echo "value=$(cat .last-deployed-version)" >> "$GITHUB_OUTPUT"
+
+      # ── Build ─────────────────────────────────────────────────────────────
+
+      - name: Build changed services
+        run: ./scripts/build.sh "$VERSION"
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+
+      # ── Staging ───────────────────────────────────────────────────────────
+
+      - name: Tag and push staging image
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          REPO=ghcr.io/rutabageldev/navi-digest
+          docker tag "$REPO:$VERSION" "$REPO:staging"
+          docker push "$REPO:$VERSION"
+          docker push "$REPO:staging"
+
+      - name: Deploy to staging
+        run: ./scripts/deploy.sh staging "$VERSION" digest
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_STAGING }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Smoke test staging
+        id: smoketest
+        run: make smoketest ENV=staging
+        continue-on-error: true
+
+      - name: Rollback staging on smoke test failure
+        if: steps.smoketest.outcome == 'failure'
+        run: |
+          PREV=${{ steps.prev.outputs.value }}
+          ./scripts/rollback.sh staging "$PREV" digest
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_STAGING }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Notify and fail on staging rollback
+        if: steps.smoketest.outcome == 'failure'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
+            curl -s -X POST \
+              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
+              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
+              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
+              --data-urlencode "To=$TWILIO_TO_NUMBER" \
+              --data-urlencode "Body=Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back." \
+              > /dev/null
+          fi
+          exit 1
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
+
+      # ── Prod ──────────────────────────────────────────────────────────────
+
+      - name: Tag and push prod image
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          REPO=ghcr.io/rutabageldev/navi-digest
+          docker tag "$REPO:$VERSION" "$REPO:prod"
+          docker tag "$REPO:$VERSION" "$REPO:latest"
+          docker push "$REPO:prod"
+          docker push "$REPO:latest"
+
+      - name: Deploy to prod
+        run: ./scripts/deploy.sh prod "$VERSION" digest
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Health check prod
+        id: healthcheck
+        run: make healthcheck ENV=prod
+        continue-on-error: true
+
+      - name: Rollback prod on health check failure
+        if: steps.healthcheck.outcome == 'failure'
+        run: |
+          PREV=${{ steps.prev.outputs.value }}
+          ./scripts/rollback.sh prod "$PREV" digest
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Notify and fail on prod rollback
+        if: steps.healthcheck.outcome == 'failure'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
+            curl -s -X POST \
+              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
+              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
+              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
+              --data-urlencode "To=$TWILIO_TO_NUMBER" \
+              --data-urlencode "Body=Hey, listen! Navi $VERSION prod health check FAILED — rolled back." \
+              > /dev/null
+          fi
+          exit 1
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
+
+      # ── Post-deploy ───────────────────────────────────────────────────────
+
+      - name: Update .last-deployed-version
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          echo "$VERSION" > .last-deployed-version
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git add .last-deployed-version
+          git commit -m "chore(infra): update .last-deployed-version to $VERSION [skip ci]"
+          git push origin HEAD:main
+
+      - name: Send success SMS
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          if [[ -n "${TWILIO_ACCOUNT_SID:-}" ]]; then
+            curl -s -X POST \
+              "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json" \
+              -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN" \
+              --data-urlencode "From=$TWILIO_FROM_NUMBER" \
+              --data-urlencode "To=$TWILIO_TO_NUMBER" \
+              --data-urlencode "Body=Hey, listen! Navi $VERSION deployed successfully." \
+              > /dev/null
+          fi
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+          TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
