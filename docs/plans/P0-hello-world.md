@@ -1162,9 +1162,10 @@ capability, which is required for this renewal to succeed.
       — confirmed 2026-04-09
 - [x] `make vault-seed ENV=staging` completes without error
 - [x] `make vault-seed ENV=prod` completes without error
-- [ ] Service starts against staging infrastructure with all checks green
-      — not yet verified against staging image; dev verified
-- [ ] SIGHUP reload confirmed working (log evidence)
+- [x] Service starts against staging infrastructure with all checks green
+      — confirmed 2026-04-09 (vault/postgres/nats all ok, version field present)
+- [x] SIGHUP reload confirmed working — log line "SIGHUP received — reloading secrets"
+      emitted at INFO; health/ready returned 200 immediately after
 - [x] `make renew-vault-token` runs without error and logs a JSON
       success line with a TTL field (90 days / 7,776,000s confirmed)
 - [x] `make install-cron` installs the weekly renewal job —
@@ -1196,6 +1197,24 @@ containers (like navi-digest-dev) could not reach them. Fix applied in Foundatio
 added `"10.0.40.10:4317->4317/tcp"` and `"10.0.40.10:4318->4318/tcp"` bindings to
 the observability compose file. Verified: `nc -zv 10.0.40.10 4317` succeeds; full
 OTLP export cycle passes without errors.
+
+**NAVI_HOST dual-purpose bug:** The staging/prod compose files set `NAVI_HOST` in
+the container environment. In bridge networking, this causes the service to bind to
+`10.0.40.10:8080` — a host IP not available inside the container. The HTTP server
+silently never started (process stayed alive due to OTEL/Postgres goroutines). Fix:
+remove `NAVI_HOST` from the `environment` block in staging/prod compose files; the
+service defaults to `0.0.0.0`. The `ports` line (`"10.0.40.10:8081:8080"`) handles
+host-side restriction. Only dev needs `NAVI_HOST` set because it uses `network_mode: host`
+where `0.0.0.0` would be too broad.
+
+**NATS networking architecture:** NATS is a Docker container (`ruby-core-prod-nats`)
+on `ruby-core-prod_default`. Its host-mapped port `127.0.0.1:4223` is only reachable
+from host-network processes. Bridge-networked containers (staging, prod) cannot reach
+`127.0.0.1:4223`. Fix: created shared `event-bus-prod` and `event-bus-dev` external
+Docker networks. ruby-core NATS containers join these networks. Navi staging/prod
+compose files join `event-bus-prod`. Vault staging/prod NATS URLs updated from
+`tls://127.0.0.1:4223` to `tls://nats:4222` (the NATS container hostname on the
+shared network). Dev retains `tls://127.0.0.1:4222` via host networking.
 
 **Cleanup:** Orphan containers from old dev compose (navi-dev-postgres,
 navi-dev-vault, navi-dev-nats) should be removed:
