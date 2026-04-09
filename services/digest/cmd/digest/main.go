@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	digestapi "github.com/rutabageldev/navi/services/digest/internal/api"
-	"github.com/rutabageldev/navi/services/digest/internal/api/gen"
 	internalnats "github.com/rutabageldev/navi/services/internal/nats"
 	"github.com/rutabageldev/navi/services/internal/postgres"
 	"github.com/rutabageldev/navi/services/internal/telemetry"
@@ -137,10 +136,14 @@ func run() error {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(requestIDResponse)
+	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
 
 	h := digestapi.NewHandler(vc, pool, nc, version)
-	gen.HandlerFromMux(h, r)
+	r.Get("/v1/health/live", h.HealthLive)
+	r.Get("/v1/health/ready", h.HealthReady)
 
 	addr := naviHost + ":" + port
 	srv := &http.Server{
@@ -182,6 +185,34 @@ func run() error {
 	}
 
 	return nil
+}
+
+// requestIDResponse copies the request ID assigned by middleware.RequestID into
+// the X-Request-ID response header, satisfying the ADR-0010 baseline requirement.
+func requestIDResponse(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rid := middleware.GetReqID(r.Context()); rid != "" {
+			w.Header().Set("X-Request-ID", rid)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requestLogger logs each completed request at INFO level with method, path,
+// status, duration, and request ID, satisfying the ADR-0010 baseline requirement.
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		slog.Info("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+			"request_id", middleware.GetReqID(r.Context()),
+		)
+	})
 }
 
 // loadPostgresConfig reads all required postgres fields from Vault.
