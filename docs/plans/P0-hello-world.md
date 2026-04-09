@@ -696,7 +696,7 @@ services:
     volumes:
       - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
     ports:
-      - "${NAVI_HOST:-10.0.40.10}:8080:8080"
+      - "${NAVI_HOST:-10.0.40.10}:8083:8080"
     networks:
       - navi
     labels:
@@ -708,6 +708,11 @@ networks:
   navi:
     external: true
 ```
+
+> **Implementation note (2026-04-09):** Port 8080 is taken by unifi-controller on
+> this node. Port layout: dev=8082, staging=8081, prod=8083. Prod port was changed
+> from 8080 to 8083 (commit bb10af2). Update Uptime Kuma monitors and any external
+> references accordingly.
 
 Create `docker-compose.staging.yml` at repo root (mirrors prod with
 staging-specific container names and environment):
@@ -801,6 +806,22 @@ container start).
       findings
 - [x] `make dev` starts the digest container without error
 - [x] `make check-generated` confirms oapi-codegen output matches spec
+
+### Implementation notes (Phase 3 corrections — 2026-04-09)
+
+**Route registration bug:** The generated `gen.HandlerFromMux(h, r)` call was used
+in task 3.4 but its return value was discarded. chi v5's `ServeHTTP` returns 404
+when `mx.handler` is nil — routes added to the tree after `With()` compiles the
+handler are reachable via `routeHTTP` but `ServeHTTP` never delegates. Fix: replaced
+`gen.HandlerFromMux(h, r)` with explicit `r.Get("/v1/health/live", h.HealthLive)` and
+`r.Get("/v1/health/ready", h.HealthReady)` (commit a6f2b36).
+
+**ADR-0010 middleware additions:** The middleware chain in `main.go` was incomplete.
+Added per ADR-0010: `middleware.Timeout(30 * time.Second)`, `requestIDResponse`
+(copies chi request ID to `X-Request-ID` response header), and `requestLogger`
+(structured slog INFO line per completed request with method/path/status/duration_ms/
+request_id). Middleware order: `RequestID → RealIP → Timeout(30s) → requestIDResponse
+→ requestLogger → Recoverer`.
 
 ---
 
@@ -1134,47 +1155,47 @@ capability, which is required for this renewal to succeed.
 
 - [x] `make setup-infra` has been run — `docker network inspect navi`
       returns without error
-- [ ] `curl http://localhost:8082/v1/health/live` returns 200 with
-      `{"status":"ok"}` — **BLOCKED: requires postgres user on Foundation**
-- [ ] `curl http://localhost:8082/v1/health/ready` returns 200 with
+- [x] `curl http://localhost:8082/v1/health/live` returns 200 with
+      `{"status":"ok"}` — confirmed 2026-04-09 after orphaned proxy cleanup
+- [x] `curl http://localhost:8082/v1/health/ready` returns 200 with
       all three checks reporting "ok" and a `version` field present
-      — **BLOCKED: requires postgres user on Foundation**
+      — confirmed 2026-04-09
 - [x] `make vault-seed ENV=staging` completes without error
 - [x] `make vault-seed ENV=prod` completes without error
 - [ ] Service starts against staging infrastructure with all checks green
-      — **BLOCKED: requires postgres user on Foundation**
+      — not yet verified against staging image; dev verified
 - [ ] SIGHUP reload confirmed working (log evidence)
-      — **BLOCKED: requires service startup first**
 - [x] `make renew-vault-token` runs without error and logs a JSON
       success line with a TTL field (90 days / 7,776,000s confirmed)
 - [x] `make install-cron` installs the weekly renewal job —
       `crontab -l` shows the entry
 - [x] No actual secrets committed to the repository
-- [ ] `vault.NewClient`, `postgres.Connect`, `nats.Connect`, and
+- [x] `vault.NewClient`, `postgres.Connect`, `nats.Connect`, and
       `telemetry.InitTracer` all succeed against real Foundation services
-      — **PARTIAL: vault.NewClient confirmed; postgres blocked by missing
-      Foundation user; nats and telemetry not yet reached**
+      — confirmed 2026-04-09 (health/ready all-green)
 
-**Blocker — Foundation Postgres user:**
-The `navi` database user must be created on Foundation Postgres before
-the service can start. Required setup:
+### Implementation notes (Phase 4 — 2026-04-09)
 
-```sql
-CREATE USER navi WITH PASSWORD '<real-password>';
-CREATE DATABASE navi;
-\c navi
-CREATE SCHEMA navi_dev;
-CREATE SCHEMA navi_staging;
-CREATE SCHEMA navi_prod;
-GRANT ALL ON SCHEMA navi_dev, navi_staging, navi_prod TO navi;
-```
+**Orphaned docker-proxy incident:** After switching `docker-compose.dev.yml` to
+`network_mode: host`, the prior bridge-networking deployment left orphaned
+`docker-proxy` processes (PIDs 3816304/3816311, started 2026-04-01) listening on
+`host:8082` and proxying to a long-gone container at `172.20.0.9:8082` on
+`docker_gwbridge`. The new host-network container silently failed to bind — the HTTP
+server never started but the process stayed alive because OTEL/Postgres goroutines
+kept running. Diagnosis: `/proc/net/tcp` showed no HTTP socket under the container
+PID; `ps aux | grep docker-proxy | grep 8082` revealed the orphan.
+Resolution: `sudo kill 3816304 3816311`, then container restart. Health endpoints
+returned 200 on 8082 immediately. See also: memory note `project_orphaned_proxy_risk.md`.
 
-Then update Vault with the real password for each environment:
-```bash
-vault kv patch secret/navi/dev/postgres password=<real-password>
-vault kv patch secret/navi/staging/postgres password=<real-password>
-vault kv patch secret/navi/prod/postgres password=<real-password>
-```
+If health endpoints ever return 404 after a container recreate, check for orphaned
+docker-proxy processes first: `ps aux | grep docker-proxy | grep <port>`.
+
+**OTel Collector host-binding:** Foundation OTel Collector was exposing ports 4317/4318
+without host IP binding — only accessible within Docker bridge networks. Host-network
+containers (like navi-digest-dev) could not reach them. Fix applied in Foundation:
+added `"10.0.40.10:4317->4317/tcp"` and `"10.0.40.10:4318->4318/tcp"` bindings to
+the observability compose file. Verified: `nc -zv 10.0.40.10 4317` succeeds; full
+OTLP export cycle passes without errors.
 
 **Cleanup:** Orphan containers from old dev compose (navi-dev-postgres,
 navi-dev-vault, navi-dev-nats) should be removed:
@@ -1265,7 +1286,7 @@ Add two monitors to Foundation Uptime Kuma under a new "Navi" group:
 
 | Name | URL | Interval |
 |------|-----|----------|
-| Digest (live) - prod | `http://10.0.40.10:8080/v1/health/live` | 60s |
+| Digest (live) - prod | `http://10.0.40.10:8083/v1/health/live` | 60s |
 | Digest (ready) - staging | `http://10.0.40.10:8081/v1/health/ready` | 60s |
 
 This is a manual configuration step in the Uptime Kuma UI. Document
