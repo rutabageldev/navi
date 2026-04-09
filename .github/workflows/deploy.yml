@@ -58,7 +58,6 @@ jobs:
         run: ./scripts/deploy.sh staging "$VERSION" digest
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_STAGING }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Smoke test staging
@@ -72,7 +71,6 @@ jobs:
           PREV=${{ steps.prev.outputs.value }}
           ./scripts/rollback.sh staging "$PREV" digest
         env:
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_STAGING }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Notify and fail on staging rollback
@@ -110,7 +108,6 @@ jobs:
         run: ./scripts/deploy.sh prod "$VERSION" digest
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Health check prod
@@ -124,7 +121,6 @@ jobs:
           PREV=${{ steps.prev.outputs.value }}
           ./scripts/rollback.sh prod "$PREV" digest
         env:
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Notify and fail on prod rollback

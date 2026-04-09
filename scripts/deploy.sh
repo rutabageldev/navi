@@ -16,11 +16,17 @@ if [[ -z "$ENV" || -z "$VERSION" ]]; then
   exit 1
 fi
 
-# Load .env for manual runs; in CI variables come from the workflow environment.
+# Load .env — authoritative source of VAULT_TOKEN for both manual runs and CI
+# (the deploy workflow runs on the self-hosted runner, so this file is always present).
 ENV_FILE="$(dirname "$0")/../.env"
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck source=/dev/null
   set -a; source "$ENV_FILE"; set +a
+fi
+
+if [[ -z "${VAULT_TOKEN:-}" ]]; then
+  echo "ERROR: VAULT_TOKEN is not set and could not be sourced from $ENV_FILE" >&2
+  exit 1
 fi
 
 case "$ENV" in
