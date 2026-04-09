@@ -62,16 +62,17 @@
     {
       "id": 3,
       "title": "Requests (1h)",
-      "description": "Count of completed HTTP requests in the last hour",
+      "description": "HTTP request count via OTEL SDK → Prometheus remote write. Label: job=navi-digest",
       "type": "stat",
       "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
-      "datasource": { "type": "loki", "uid": "loki" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({container_name=~\"navi-digest.*\"} |= \"http request\" [1h]))",
-          "queryType": "instant",
-          "refId": "A"
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(http_server_request_duration_seconds_count{job=\"navi-digest\"}[1h]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
         }
       ],
       "options": {
@@ -85,6 +86,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
