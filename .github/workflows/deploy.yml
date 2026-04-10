@@ -44,6 +44,18 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.value }}
 
+      # ── Security scan ─────────────────────────────────────────────────────
+
+      # Scans the built image for OS-layer and dependency CVEs.
+      # CRITICAL threshold only — image scans hit OS packages and produce more
+      # noise than filesystem scans; HIGH findings belong in the CI security job.
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ghcr.io/rutabageldev/navi-digest:${{ steps.version.outputs.value }}
+          severity: CRITICAL
+          exit-code: 1
+
       # ── Staging ───────────────────────────────────────────────────────────
 
       - name: Tag and push staging image
