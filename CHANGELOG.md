@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/rutabageldev/navi/compare/v0.1.1...v0.1.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* **ci:** load host .env into GITHUB_ENV at deploy job start ([1309d62](https://github.com/rutabageldev/navi/commit/1309d62831e31ca0952d42525b4401eaf1eeca33))
+* **ci:** load host .env into GITHUB_ENV at deploy job start ([b1e68c4](https://github.com/rutabageldev/navi/commit/b1e68c439650d1ff59e8f2f209851b5e127fb655))
+
 ## [0.1.1](https://github.com/rutabageldev/navi/compare/v0.1.0...v0.1.1) (2026-04-10)
 
 
