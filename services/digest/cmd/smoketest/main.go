@@ -25,7 +25,7 @@ func main() {
 		case "staging":
 			*addr = "10.0.40.10:8081"
 		case "prod":
-			*addr = "10.0.40.10:8083"
+			*addr = "10.0.40.10:8084"
 		default:
 			fmt.Fprintf(os.Stderr, "unknown env %q — want dev|staging|prod\n", *env)
 			os.Exit(1)

@@ -11,7 +11,7 @@ services:
     volumes:
       - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
     ports:
-      - "${NAVI_HOST:-10.0.40.10}:8083:8080"
+      - "${NAVI_HOST:-10.0.40.10}:8084:8080"
     networks:
       - navi
       - event-bus-prod
