@@ -102,9 +102,9 @@ jobs:
           VERSION=${{ steps.version.outputs.value }}
           PREV=${{ steps.prev.outputs.value }}
           if [[ "${{ steps.smoketest-rollback.outcome }}" == "success" ]]; then
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back to $PREV successfully."
+            ./scripts/notify-sms.sh -env staging "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back to $PREV successfully."
           else
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rollback to $PREV also failed. Manual intervention required."
+            ./scripts/notify-sms.sh -env staging "Hey, listen! Navi $VERSION staging smoke tests FAILED — rollback to $PREV also failed. Manual intervention required."
           fi
           exit 1
 
@@ -153,15 +153,18 @@ jobs:
           VERSION=${{ steps.version.outputs.value }}
           PREV=${{ steps.prev.outputs.value }}
           if [[ "${{ steps.healthcheck-rollback.outcome }}" == "success" ]]; then
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rolled back to $PREV successfully."
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION prod health check FAILED — rolled back to $PREV successfully."
           else
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rollback to $PREV also failed. Manual intervention required."
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION prod health check FAILED — rollback to $PREV also failed. Manual intervention required."
           fi
           exit 1
 
       # ── Post-deploy ───────────────────────────────────────────────────────
 
+      # Only advance rollback state when a service was actually deployed to prod.
+      # A docs-only release must not change the version that rollback would target.
       - name: Update .last-deployed-version
+        if: steps.build.outputs.built == 'true'
         run: |
           VERSION=${{ steps.version.outputs.value }}
           echo "$VERSION" > .last-deployed-version
@@ -177,7 +180,7 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.value }}
           if [[ "${{ steps.build.outputs.built }}" == "true" ]]; then
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION deployed successfully."
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION deployed successfully."
           else
-            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION tagged — no service changes, deploy skipped."
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION tagged — no service changes, deploy skipped."
           fi

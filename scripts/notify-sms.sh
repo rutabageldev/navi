@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 # notify-sms.sh — Send a deployment notification via Twilio SMS.
 #
-# Usage: ./scripts/notify-sms.sh <message>
+# Usage: ./scripts/notify-sms.sh [-env <dev|staging|prod>] <message>
 #
 # Reads Twilio credentials from Vault at secret/navi/{env}/twilio using
-# VAULT_TOKEN and NAVI_ENV sourced from /opt/navi/.env. Exits 0 silently
-# if credentials are not configured — SMS is best-effort, never a blocker.
+# VAULT_TOKEN sourced from /opt/navi/.env. The -env flag controls which
+# Vault path is queried; defaults to prod.
+#
+# Exits 0 silently if credentials are not configured — SMS is
+# best-effort, never a blocker.
 set -euo pipefail
+
+ENV="prod"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -env) ENV="$2"; shift 2 ;;
+    *)    break ;;
+  esac
+done
 
 MESSAGE="${1:-}"
 if [[ -z "$MESSAGE" ]]; then
-  echo "Usage: $0 <message>" >&2
+  echo "Usage: $0 [-env dev|staging|prod] <message>" >&2
   exit 1
 fi
 
@@ -27,7 +38,6 @@ fi
 
 VAULT_ADDR="${VAULT_ADDR:-https://10.0.40.10:8200}"
 VAULT_CACERT="${VAULT_CACERT:-/opt/foundation/vault/tls/vault-ca.crt}"
-ENV="${NAVI_ENV:-prod}"
 VAULT_PATH="secret/data/navi/$ENV/twilio"
 
 # Fetch Twilio credentials from Vault.
@@ -47,7 +57,7 @@ TWILIO_FROM_NUMBER=$(echo "$TWILIO_SECRET" | jq -r '.data.data.from_number // em
 TWILIO_TO_NUMBER=$(echo "$TWILIO_SECRET" | jq -r '.data.data.to_number // empty')
 
 if [[ -z "$TWILIO_ACCOUNT_SID" ]]; then
-  echo "Twilio credentials not configured in Vault — skipping SMS notification."
+  echo "Twilio credentials not configured in Vault at $VAULT_PATH — skipping SMS notification."
   exit 0
 fi
 

@@ -339,6 +339,38 @@ implemented.
 
 ---
 
+### Deployment Credential Policy
+
+All Navi secrets live in Vault (ADR-0002). The deploy pipeline is no
+exception, with one deliberate bootstrap carve-out:
+
+**`VAULT_TOKEN` in `.env` on the self-hosted runner is intentional
+policy, not drift.** The runner and the service run on the same node.
+The token on disk is as secure as the node itself. More importantly,
+it solves the bootstrap problem: fetching secrets from Vault requires
+a Vault token, and that token must live somewhere. Storing it in
+GitHub Actions secrets was explicitly rejected because a stale or
+expired token there creates a silent failure mode — the pipeline
+breaks with no alert. Storing it on the node means failures surface
+immediately when the service fails to start.
+
+This exception is scoped narrowly:
+- Only `VAULT_TOKEN` is read from `.env` — it is the bootstrap
+  credential for Vault access, not an application secret.
+- All other secrets (Postgres, NATS, Twilio, Resend, OTel) MUST be
+  fetched from Vault at runtime using this token.
+- `VAULT_TOKEN` is a periodic token renewed weekly by cron. The
+  renewal process is documented in the operational runbook.
+- This pattern is only valid because the runner is co-located with the
+  service node. If the runner topology changes (e.g. GitHub-hosted
+  runners), this policy MUST be revisited.
+
+`NAVI_HOST` is the only GitHub Actions secret required by the pipeline.
+It is not sensitive (it is a LAN IP), but it is environment-specific
+and runner-agnostic, making it appropriate to store as a repo secret.
+
+---
+
 ### Image Registry
 
 Docker images MUST be pushed to GitHub Container Registry (ghcr.io)

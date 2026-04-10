@@ -9,7 +9,7 @@ on:
 jobs:
   vuln-scan:
     name: Dependency vulnerability scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
 
     steps:
       - uses: actions/checkout@v4
@@ -39,32 +39,49 @@ jobs:
           exit-code: 1
         continue-on-error: true
 
-      - name: Open issue on findings
+      # Per ADR-0013: weekly scan results are delivered via email using
+      # the Navi Resend integration. No findings = no email (silence is success).
+      # Runs on the self-hosted runner so VAULT_TOKEN is available via .env
+      # to fetch the Resend API key from Vault at secret/navi/prod/resend.
+      - name: Email findings via Resend
         if: steps.govulncheck.outcome == 'failure' || steps.trivy.outcome == 'failure'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const tools = [];
-            if ('${{ steps.govulncheck.outcome }}' === 'failure') tools.push('govulncheck');
-            if ('${{ steps.trivy.outcome }}' === 'failure') tools.push('Trivy');
-            const title = `Security: vulnerability findings from scheduled scan (${tools.join(', ')})`;
-            const body = [
-              '## Scheduled vulnerability scan findings',
-              '',
-              `**Date:** ${new Date().toISOString().split('T')[0]}`,
-              `**Tools with findings:** ${tools.join(', ')}`,
-              `**Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
-              '',
-              'Review the run logs above for the full finding list.',
-              'Resolve by upgrading affected dependencies or patching the base image.',
-            ].join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-              labels: ['security', 'drift'],
-            });
+        run: |
+          ENV_FILE="$(pwd)/.env"
+          if [[ -f "$ENV_FILE" ]]; then
+            set -a; source "$ENV_FILE"; set +a
+          fi
+
+          VAULT_ADDR="${VAULT_ADDR:-https://10.0.40.10:8200}"
+          VAULT_CACERT="${VAULT_CACERT:-/opt/foundation/vault/tls/vault-ca.crt}"
+
+          RESEND_SECRET=$(curl -sf \
+            --cacert "$VAULT_CACERT" \
+            -H "X-Vault-Token: $VAULT_TOKEN" \
+            "$VAULT_ADDR/v1/secret/data/navi/prod/resend" 2>/dev/null) || true
+
+          RESEND_API_KEY=$(echo "$RESEND_SECRET" | jq -r '.data.data.api_key // empty')
+          if [[ -z "$RESEND_API_KEY" ]]; then
+            echo "Resend API key not available in Vault — skipping email notification."
+            exit 0
+          fi
+
+          TOOLS=()
+          [[ "${{ steps.govulncheck.outcome }}" == "failure" ]] && TOOLS+=("govulncheck")
+          [[ "${{ steps.trivy.outcome }}" == "failure" ]] && TOOLS+=("Trivy")
+          TOOL_LIST=$(IFS=', '; echo "${TOOLS[*]}")
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"navi@rutabageldev.com\",
+              \"to\": [\"rutabageldev@gmail.com\"],
+              \"subject\": \"[Navi] Vulnerability findings — $TOOL_LIST\",
+              \"text\": \"Weekly vulnerability scan found issues.\n\nTools with findings: $TOOL_LIST\nDate: $(date -u +%Y-%m-%d)\nRun: $RUN_URL\n\nReview the run logs for the full finding list. Resolve by upgrading affected dependencies or patching the base image.\"
+            }" > /dev/null
+
+          echo "Findings email sent."
 
       - name: Fail if findings found
         if: steps.govulncheck.outcome == 'failure' || steps.trivy.outcome == 'failure'
