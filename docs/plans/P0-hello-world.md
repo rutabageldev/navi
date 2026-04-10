@@ -1,6 +1,6 @@
 # PLAN-0001 — P0: Hello World
 
-* **Status:** Approved
+* **Status:** In Progress
 * **Date:** 2026-04-06
 * **Project:** navi
 * **Roadmap Item:** none (pre-roadmap milestone)
@@ -1347,7 +1347,7 @@ rather than nested under `/etc/grafana/provisioning/`.
 
 ---
 
-## Phase 6 — CI/CD Pipeline
+## Phase 6 — CI/CD Pipeline ✓ COMPLETE (2026-04-10, v0.1.4)
 
 **Purpose:** Wire the complete GitHub Actions CI/CD pipeline including
 automated testing, release-please version management, staging + prod
@@ -1548,16 +1548,16 @@ P0 smoke tests (each as a named function):
 ### Exit criteria
 
 - [x] Push to a feature branch triggers `ci.yml` and all steps pass
-- [ ] Merge a `feat:` commit to main causes release-please to create
+- [x] Merge a `feat:` commit to main causes release-please to create
       or update a Release PR with the correct version bump
-- [ ] Merging the Release PR causes release-please to cut a tag
-- [ ] The tag triggers `deploy.yml` on the self-hosted runner
-- [ ] `make smoketest ENV=staging` passes against the staged service
-- [ ] The pipeline promotes to prod and the prod health checks pass
-- [ ] `.last-deployed-version` is updated in a commit on main after
-      a successful prod deployment
-- [ ] A success SMS is received: "Hey, listen! Navi v0.0.1 deployed
-      successfully."
+- [x] Merging the Release PR causes release-please to cut a tag
+- [x] The tag triggers `deploy.yml` on the self-hosted runner
+- [x] `make smoketest ENV=staging` passes against the staged service
+- [x] The pipeline promotes to prod and the prod health checks pass
+- [x] `.last-deployed-version` is updated in a commit on main after
+      a successful prod deployment (confirmed v0.1.4)
+- [ ] A success SMS is received: "Hey, listen! Navi vX.Y.Z deployed
+      successfully." — BLOCKED: Twilio not yet configured (P1 dependency)
 - [x] `make rollback ENV=staging VERSION=none SERVICE=digest` exits 1
       with a clear "no previous version" message — correct behaviour;
       silent no-op on a rollback would be dangerous
@@ -1566,10 +1566,10 @@ P0 smoke tests (each as a named function):
       health check request; navigate to the correlated Loki log line
       via trace_id to confirm both pipelines end-to-end
 - [ ] At least one structured JSON log line from the prod container is
-      queryable in Foundation Loki: `{container_name="navi-digest-prod"} | json`
+      queryable in Foundation Loki: `{container_name="navi-prod-digest"} | json`
 - [ ] Prod health endpoints added to Foundation Uptime Kuma under a
-      "Navi" group: live (`http://10.0.40.10:8083/v1/health/live`, 60s)
-      and ready (`http://10.0.40.10:8083/v1/health/ready`, 60s)
+      "Navi" group: live (`http://10.0.40.10:8084/v1/health/live`, 60s)
+      and ready (`http://10.0.40.10:8084/v1/health/ready`, 60s)
 
 ---
 
@@ -1631,16 +1631,16 @@ milestone done:
 
 **CI/CD**
 - [x] Push to feature branch triggers lint + tests
-- [ ] Release PR created by release-please for each feat: commit to main
-- [ ] Version tag triggers staging deploy
-- [ ] Staging smoke tests gate prod promotion
-- [ ] Prod deploy follows passing smoke tests automatically
+- [x] Release PR created by release-please for each feat: commit to main
+- [x] Version tag triggers staging deploy
+- [x] Staging smoke tests gate prod promotion
+- [x] Prod deploy follows passing smoke tests automatically
 - [ ] Automated rollback fires on smoke test failure (verified in 7.2)
 - [ ] Automated rollback fires on health check failure (if not tested
       in 7.2, test manually)
-- [ ] Deployment result delivered via SMS
-- [ ] release-please producing Release PRs correctly
-- [ ] `.versions.json` and `.last-deployed-version` present and managed
+- [ ] Deployment result delivered via SMS — BLOCKED: Twilio not yet configured
+- [x] release-please producing Release PRs correctly
+- [x] `.versions.json` and `.last-deployed-version` present and managed
 
 **Service**
 - [x] `services/digest/` compiles and runs in Docker
@@ -1657,9 +1657,11 @@ milestone done:
 - [ ] Navigate from the trace in Tempo to the correlated log line in
       Loki using trace_id — both links work in both directions
 - [x] `navi_up` or equivalent metric visible in Foundation Grafana
-- [ ] At least one structured JSON log line queryable in Foundation Loki
+- [ ] At least one structured JSON log line queryable in Foundation Loki:
+      `{container_name="navi-prod-digest"} | json`
 - [ ] Health endpoints showing green in Foundation Uptime Kuma under
-      the Navi group
+      the Navi group (live: `http://10.0.40.10:8084/v1/health/live`,
+      ready: `http://10.0.40.10:8084/v1/health/ready`)
 
 **Vault**
 - [x] All required Vault paths seeded (with real values for Postgres,
