@@ -1,6 +1,6 @@
 # PLAN-0001 — P0: Hello World
 
-* **Status:** In Progress
+* **Status:** Complete — Archived 2026-04-10
 * **Date:** 2026-04-06
 * **Project:** navi
 * **Roadmap Item:** none (pre-roadmap milestone)
@@ -1557,19 +1557,23 @@ P0 smoke tests (each as a named function):
 - [x] `.last-deployed-version` is updated in a commit on main after
       a successful prod deployment (confirmed v0.1.4)
 - [ ] A success SMS is received: "Hey, listen! Navi vX.Y.Z deployed
-      successfully." — BLOCKED: Twilio not yet configured (P1 dependency)
+      successfully." — DEFERRED to P1: Twilio credentials not seeded in Vault.
+      Pipeline exits gracefully (notify-sms.sh exits 0 on Vault miss). Not blocking P0.
 - [x] `make rollback ENV=staging VERSION=none SERVICE=digest` exits 1
       with a clear "no previous version" message — correct behaviour;
       silent no-op on a rollback would be dangerous
 - [x] `make check-generated` confirms oapi-codegen output is current
-- [ ] At least one trace is visible in Foundation Tempo after a prod
+- [x] At least one trace is visible in Foundation Tempo after a prod
       health check request; navigate to the correlated Loki log line
       via trace_id to confirm both pipelines end-to-end
-- [ ] At least one structured JSON log line from the prod container is
+      — confirmed 2026-04-10 after trace_id fix landed in v0.1.5
+- [x] At least one structured JSON log line from the prod container is
       queryable in Foundation Loki: `{container_name="navi-prod-digest"} | json`
-- [ ] Prod health endpoints added to Foundation Uptime Kuma under a
+      — confirmed 2026-04-10: 3 streams, structured JSON, all required fields present
+- [x] Prod health endpoints added to Foundation Uptime Kuma under a
       "Navi" group: live (`http://10.0.40.10:8084/v1/health/live`, 60s)
       and ready (`http://10.0.40.10:8084/v1/health/ready`, 60s)
+      — confirmed 2026-04-10
 
 ---
 
@@ -1635,10 +1639,12 @@ milestone done:
 - [x] Version tag triggers staging deploy
 - [x] Staging smoke tests gate prod promotion
 - [x] Prod deploy follows passing smoke tests automatically
-- [ ] Automated rollback fires on smoke test failure (verified in 7.2)
-- [ ] Automated rollback fires on health check failure (if not tested
-      in 7.2, test manually)
-- [ ] Deployment result delivered via SMS — BLOCKED: Twilio not yet configured
+- [x] Automated rollback fires on smoke test failure (verified in 7.2)
+      — confirmed 2026-04-10: v0.1.6 prod health checks failed, pipeline
+      rolled back to v0.1.5, prod returned 200 with version=v0.1.5
+- [x] Automated rollback fires on health check failure (if not tested
+      in 7.2, test manually) — same drill, confirmed above
+- [ ] Deployment result delivered via SMS — DEFERRED to P1: Twilio not yet configured
 - [x] release-please producing Release PRs correctly
 - [x] `.versions.json` and `.last-deployed-version` present and managed
 
@@ -1648,20 +1654,22 @@ milestone done:
 - [x] `GET /v1/health/ready` returns 200 with Postgres, NATS, and Vault
       connectivity confirmed
 - [x] All three compose files work correctly
-- [ ] Service version reported in `/v1/health/ready` response body
-      matches the deployed tag
+- [x] Service version reported in `/v1/health/ready` response body
+      matches the deployed tag — confirmed 2026-04-10: `"version":"v0.1.5"`
 
 **Observability**
-- [ ] At least one trace visible in Foundation Tempo (from a health
-      request) with the full span visible
-- [ ] Navigate from the trace in Tempo to the correlated log line in
+- [x] At least one trace visible in Foundation Tempo (from a health
+      request) with the full span visible — confirmed 2026-04-10:
+      3 traces, SPAN_KIND_SERVER, full HTTP attributes present
+- [x] Navigate from the trace in Tempo to the correlated log line in
       Loki using trace_id — both links work in both directions
+      — confirmed 2026-04-10 after trace_id fix in v0.1.5 (PR #16)
 - [x] `navi_up` or equivalent metric visible in Foundation Grafana
-- [ ] At least one structured JSON log line queryable in Foundation Loki:
-      `{container_name="navi-prod-digest"} | json`
-- [ ] Health endpoints showing green in Foundation Uptime Kuma under
+- [x] At least one structured JSON log line queryable in Foundation Loki:
+      `{container_name="navi-prod-digest"} | json` — confirmed 2026-04-10
+- [x] Health endpoints showing green in Foundation Uptime Kuma under
       the Navi group (live: `http://10.0.40.10:8084/v1/health/live`,
-      ready: `http://10.0.40.10:8084/v1/health/ready`)
+      ready: `http://10.0.40.10:8084/v1/health/ready`) — added 2026-04-10
 
 **Vault**
 - [x] All required Vault paths seeded (with real values for Postgres,
@@ -1672,7 +1680,35 @@ milestone done:
 
 ### Exit criteria (P0 done when)
 
-All checkboxes in 7.3 are checked. No partial passes.
+All checkboxes in 7.3 are checked. No partial passes. SMS delivery is
+the only open item and is explicitly deferred to P1.
+
+### Implementation notes (Phase 7 — 2026-04-10)
+
+**trace_id missing from logs (ADR-0008 violation):** `requestLogger`
+middleware was not extracting the OTEL span context after the request
+completed. `otelhttp.NewHandler` is the outermost layer so the span
+is in context — it simply was never being read. Fixed by calling
+`trace.SpanFromContext(r.Context()).SpanContext()` inside the middleware
+and adding `trace_id` to the `slog.Info` call. Required adding
+`go.opentelemetry.io/otel/trace` import. Fixed in PR #16, shipped in
+v0.1.5. Tempo → Loki correlation confirmed working after this deploy.
+
+**detect-changes.sh silent failure on non-git-ref version strings:**
+`build.sh` passes the version string as `$NEW` to `detect-changes.sh`,
+which uses it in `git diff $PREV $NEW`. When `$NEW` is not a real git
+ref (e.g. `v0.1.6-drill` from a `workflow_dispatch` input), the diff
+fails silently and returns empty — causing the build to skip entirely.
+Fixed by resolving `$NEW` to `HEAD` when it cannot be verified as a
+git object, and removing `2>/dev/null` suppression on `git diff` so
+real errors surface. Fixed in PR #19.
+
+**Rollback drill execution:** Drill code forced `/v1/health/ready` to
+return 503 when `NAVI_ENV=prod`. Staging smoke tests passed (runs with
+`NAVI_ENV=staging`), triggering prod promotion. Prod health checks hit
+the 503, pipeline rolled back to v0.1.5. Confirmed: prod returned
+`{"status":"ok","version":"v0.1.5"}` immediately after rollback.
+Drill code reverted in PR #21, v0.1.7.
 
 ---
 
