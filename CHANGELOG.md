@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/rutabageldev/navi/compare/v0.1.5...v0.1.6) (2026-04-10)
+
+
+### Bug Fixes
+
+* **infra:** fall back to HEAD when NEW ref is not a valid git object ([#19](https://github.com/rutabageldev/navi/issues/19)) ([b42630d](https://github.com/rutabageldev/navi/commit/b42630df7d2af3b07e302e927f14d1ebccdd6af7))
+
 ## [0.1.5](https://github.com/rutabageldev/navi/compare/v0.1.4...v0.1.5) (2026-04-10)
 
 
