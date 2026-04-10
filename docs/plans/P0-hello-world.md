@@ -1708,7 +1708,13 @@ return 503 when `NAVI_ENV=prod`. Staging smoke tests passed (runs with
 `NAVI_ENV=staging`), triggering prod promotion. Prod health checks hit
 the 503, pipeline rolled back to v0.1.5. Confirmed: prod returned
 `{"status":"ok","version":"v0.1.5"}` immediately after rollback.
-Drill code reverted in PR #21, v0.1.7.
+
+**Drill revert failure:** PR #21 (`revert(digest): remove rollback drill
+503`) merged with an empty diff — `handlers.go` was never actually
+changed. The drill block survived into v0.1.7, causing the v0.1.7
+deploy to fail for the same reason. Drill code was manually removed in
+PR #23, v0.1.8. Root cause: the merge was approved without verifying
+the actual file diff, only the commit message.
 
 ---
 
