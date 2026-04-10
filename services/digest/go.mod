@@ -2,7 +2,7 @@ module github.com/rutabageldev/navi/services/digest
 
 go 1.25.9
 
-toolchain go1.25.8
+toolchain go1.25.9
 
 replace github.com/rutabageldev/navi/services/internal => ../internal
 

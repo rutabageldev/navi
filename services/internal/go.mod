@@ -2,7 +2,7 @@ module github.com/rutabageldev/navi/services/internal
 
 go 1.25.9
 
-toolchain go1.25.8
+toolchain go1.25.9
 
 require (
 	github.com/cloudevents/sdk-go/v2 v2.16.2
