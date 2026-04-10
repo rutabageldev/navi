@@ -3,7 +3,7 @@ VERSION    ?= $(shell cat .last-deployed-version)
 SERVICE    ?= digest
 
 .PHONY: setup setup-infra dev test lint build deploy smoketest \
-        healthcheck rollback migrate vault-seed logs status \
+        healthcheck rollback migrate vault-seed logs docker-ps \
         check-generated validate-schemas \
         renew-vault-token install-cron uninstall-cron
 
@@ -63,11 +63,13 @@ vault-seed:
 logs:
 	docker compose -f docker-compose.$(ENV).yml logs -f
 
-## status: Show running container status across all environments
-status:
-	docker compose -f docker-compose.dev.yml ps 2>/dev/null || true
-	docker compose -f docker-compose.staging.yml ps 2>/dev/null || true
-	docker compose -f docker-compose.yml ps 2>/dev/null || true
+## docker-ps: Show running navi containers with aligned columns
+docker-ps:
+	@rows=$$(docker ps --filter 'name=navi-' \
+	  --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null \
+	  | awk -F'\t' 'BEGIN{OFS="\t"} {if(length($$4)>50) $$4=substr($$4,1,47)"..."; print}'); \
+	{ printf 'NAMES\tIMAGE\tSTATUS\tPORTS\n'; [ -n "$$rows" ] && printf '%s\n' "$$rows"; } \
+	  | column -t -s "$$(printf '\t')"
 
 ## check-generated: Verify oapi-codegen output is current
 check-generated:
