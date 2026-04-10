@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/rutabageldev/navi/compare/v0.1.2...v0.1.3) (2026-04-10)
+
+
+### Bug Fixes
+
+* **infra:** change prod port to 8084 and restructure deploy into pipeline jobs ([5b69145](https://github.com/rutabageldev/navi/commit/5b691455e35757f7368bb1eb31ba2f6ff694523e))
+* **infra:** change prod port to 8084 and restructure deploy pipeline ([a11d892](https://github.com/rutabageldev/navi/commit/a11d892f1513b78a96ad7baad20eb0e7b7576ee3))
+
 ## [0.1.2](https://github.com/rutabageldev/navi/compare/v0.1.1...v0.1.2) (2026-04-10)
 
 
