@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/rutabageldev/navi/compare/v0.1.3...v0.1.4) (2026-04-10)
+
+
+### Bug Fixes
+
+* **infra:** prod port 8084, service-addr fix, and container rename ([69c53d3](https://github.com/rutabageldev/navi/commit/69c53d3177c47a39b3f31d0b0612e2a2bf42d36b))
+* **infra:** update service-addr.sh prod port to 8084 ([8936b0f](https://github.com/rutabageldev/navi/commit/8936b0f67bd2ceef3c79cfcfd3d87cfad4241427))
+
 ## [0.1.3](https://github.com/rutabageldev/navi/compare/v0.1.2...v0.1.3) (2026-04-10)
 
 
