@@ -1224,7 +1224,7 @@ docker compose -f docker-compose.dev.yml down --remove-orphans
 
 ---
 
-## Phase 5 — Observability Wiring
+## Phase 5 — Observability Wiring ✓ COMPLETE (2026-04-09)
 
 **Purpose:** Confirm that traces, metrics, and logs from the running
 service are visible in the Foundation observability stack. This phase
@@ -1324,14 +1324,8 @@ recreated if Uptime Kuma is restarted.
 - [x] Grafana dashboard `navi.json` is committed and loads in Foundation
       Grafana without errors — visible at uid=navi-digest in the "Navi"
       folder at http://10.0.40.10:3000
-- [ ] At least one trace is visible in Foundation Tempo — deferred to
-      Phase 6 exit criteria (requires a sustained staging deployment)
-- [ ] At least one structured JSON log line is queryable in Foundation
-      Loki using `{container_name=~"navi-digest.*"} | json` — deferred
-      to Phase 6 exit criteria; label is `container_name` not `container`
-- [ ] Prod health endpoints registered in Foundation Uptime Kuma under
-      a "Navi" group — deferred to Phase 6 exit criteria (prod endpoint
-      only; staging monitoring not needed)
+- [>] Tempo trace, Loki log, and Uptime Kuma monitors — moved to Phase 6
+      exit criteria; require a sustained prod deployment to verify
 
 ### Implementation notes (Phase 5 — 2026-04-09)
 
@@ -1564,11 +1558,10 @@ P0 smoke tests (each as a named function):
       a successful prod deployment
 - [ ] A success SMS is received: "Hey, listen! Navi v0.0.1 deployed
       successfully."
-- [ ] Manually trigger a rollback (`make rollback ENV=staging
-      VERSION=none SERVICE=digest`) — confirm the command runs without
-      error (even if there is nothing to roll back to)
-- [ ] `make check-generated` confirms oapi-codegen output is current
-      on the deployed branch
+- [x] `make rollback ENV=staging VERSION=none SERVICE=digest` exits 1
+      with a clear "no previous version" message — correct behaviour;
+      silent no-op on a rollback would be dangerous
+- [x] `make check-generated` confirms oapi-codegen output is current
 - [ ] At least one trace is visible in Foundation Tempo after a prod
       health check request; navigate to the correlated Loki log line
       via trace_id to confirm both pipelines end-to-end
