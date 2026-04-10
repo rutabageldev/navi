@@ -1,0 +1,71 @@
+name: Scheduled Vulnerability Scan
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:  # allow manual trigger
+
+jobs:
+  vuln-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.9"
+          cache: true
+
+      - name: govulncheck
+        id: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go work edit -json | jq -r '.Use[].DiskPath' | \
+            xargs -I{} sh -c 'cd "{}" && govulncheck ./...'
+        continue-on-error: true
+
+      - name: Trivy filesystem scan
+        id: trivy
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+        continue-on-error: true
+
+      - name: Open issue on findings
+        if: steps.govulncheck.outcome == 'failure' || steps.trivy.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tools = [];
+            if ('${{ steps.govulncheck.outcome }}' === 'failure') tools.push('govulncheck');
+            if ('${{ steps.trivy.outcome }}' === 'failure') tools.push('Trivy');
+            const title = `Security: vulnerability findings from scheduled scan (${tools.join(', ')})`;
+            const body = [
+              '## Scheduled vulnerability scan findings',
+              '',
+              `**Date:** ${new Date().toISOString().split('T')[0]}`,
+              `**Tools with findings:** ${tools.join(', ')}`,
+              `**Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              '',
+              'Review the run logs above for the full finding list.',
+              'Resolve by upgrading affected dependencies or patching the base image.',
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['security', 'drift'],
+            });
+
+      - name: Fail if findings found
+        if: steps.govulncheck.outcome == 'failure' || steps.trivy.outcome == 'failure'
+        run: exit 1

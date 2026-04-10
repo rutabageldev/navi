@@ -40,16 +40,18 @@ jobs:
       # ── Build ─────────────────────────────────────────────────────────────
 
       - name: Build changed services
+        id: build
         run: ./scripts/build.sh "$VERSION"
         env:
           VERSION: ${{ steps.version.outputs.value }}
 
       # ── Security scan ─────────────────────────────────────────────────────
 
-      # Scans the built image for OS-layer and dependency CVEs.
-      # CRITICAL threshold only — image scans hit OS packages and produce more
-      # noise than filesystem scans; HIGH findings belong in the CI security job.
+      # Only scan if an image was actually built. Skipped on docs-only tags.
+      # CRITICAL threshold — image scans hit OS packages and are noisier than
+      # filesystem scans; HIGH findings belong in the CI security job.
       - name: Scan image with Trivy
+        if: steps.build.outputs.built == 'true'
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ghcr.io/rutabageldev/navi-digest:${{ steps.version.outputs.value }}
@@ -59,6 +61,7 @@ jobs:
       # ── Staging ───────────────────────────────────────────────────────────
 
       - name: Tag and push staging image
+        if: steps.build.outputs.built == 'true'
         run: |
           VERSION=${{ steps.version.outputs.value }}
           REPO=ghcr.io/rutabageldev/navi-digest
@@ -67,34 +70,48 @@ jobs:
           docker push "$REPO:staging"
 
       - name: Deploy to staging
+        if: steps.build.outputs.built == 'true'
         run: ./scripts/deploy.sh staging "$VERSION" digest
         env:
           VERSION: ${{ steps.version.outputs.value }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Smoke test staging
+        if: steps.build.outputs.built == 'true'
         id: smoketest
         run: make smoketest ENV=staging
         continue-on-error: true
 
       - name: Rollback staging on smoke test failure
-        if: steps.smoketest.outcome == 'failure'
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
         run: |
           PREV=${{ steps.prev.outputs.value }}
           ./scripts/rollback.sh staging "$PREV" digest
         env:
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
+      - name: Smoke test staging rollback
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
+        id: smoketest-rollback
+        run: make smoketest ENV=staging
+        continue-on-error: true
+
       - name: Notify and fail on staging rollback
-        if: steps.smoketest.outcome == 'failure'
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back."
+          PREV=${{ steps.prev.outputs.value }}
+          if [[ "${{ steps.smoketest-rollback.outcome }}" == "success" ]]; then
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back to $PREV successfully."
+          else
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION staging smoke tests FAILED — rollback to $PREV also failed. Manual intervention required."
+          fi
           exit 1
 
       # ── Prod ──────────────────────────────────────────────────────────────
 
       - name: Tag and push prod image
+        if: steps.build.outputs.built == 'true'
         run: |
           VERSION=${{ steps.version.outputs.value }}
           REPO=ghcr.io/rutabageldev/navi-digest
@@ -104,29 +121,42 @@ jobs:
           docker push "$REPO:latest"
 
       - name: Deploy to prod
+        if: steps.build.outputs.built == 'true'
         run: ./scripts/deploy.sh prod "$VERSION" digest
         env:
           VERSION: ${{ steps.version.outputs.value }}
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
       - name: Health check prod
+        if: steps.build.outputs.built == 'true'
         id: healthcheck
         run: make healthcheck ENV=prod
         continue-on-error: true
 
       - name: Rollback prod on health check failure
-        if: steps.healthcheck.outcome == 'failure'
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
         run: |
           PREV=${{ steps.prev.outputs.value }}
           ./scripts/rollback.sh prod "$PREV" digest
         env:
           NAVI_HOST: ${{ secrets.NAVI_HOST }}
 
+      - name: Health check prod rollback
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
+        id: healthcheck-rollback
+        run: make healthcheck ENV=prod
+        continue-on-error: true
+
       - name: Notify and fail on prod rollback
-        if: steps.healthcheck.outcome == 'failure'
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rolled back."
+          PREV=${{ steps.prev.outputs.value }}
+          if [[ "${{ steps.healthcheck-rollback.outcome }}" == "success" ]]; then
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rolled back to $PREV successfully."
+          else
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION prod health check FAILED — rollback to $PREV also failed. Manual intervention required."
+          fi
           exit 1
 
       # ── Post-deploy ───────────────────────────────────────────────────────
@@ -146,4 +176,8 @@ jobs:
       - name: Send success SMS
         run: |
           VERSION=${{ steps.version.outputs.value }}
-          ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION deployed successfully."
+          if [[ "${{ steps.build.outputs.built }}" == "true" ]]; then
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION deployed successfully."
+          else
+            ./scripts/notify-sms.sh "Hey, listen! Navi $VERSION tagged — no service changes, deploy skipped."
+          fi

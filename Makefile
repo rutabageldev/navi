@@ -22,11 +22,12 @@ dev:
 
 ## test: Run unit tests with race detector
 test:
-	go test -race ./services/...
+	go work edit -json | jq -r '.Use[].DiskPath' | \
+	    xargs -I{} go test -race ./{}/...
 
 ## lint: Run golangci-lint
 lint:
-	golangci-lint run ./services/...
+	golangci-lint run ./services/digest/... ./services/internal/...
 
 ## build: Build Docker images for changed services since last tag
 build:

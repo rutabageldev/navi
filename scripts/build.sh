@@ -20,7 +20,10 @@ CHANGED=$(./scripts/detect-changes.sh "$PREV" "$VERSION")
 
 if [[ -z "$CHANGED" ]]; then
   echo "No service changes detected since $PREV — skipping image build."
-  echo "Existing images will be used for deployment."
+  # Signal to CI that no image was produced so deploy steps are skipped.
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "built=false" >> "$GITHUB_OUTPUT"
+  fi
   exit 0
 fi
 
@@ -34,3 +37,7 @@ for SERVICE in $CHANGED; do
     .
   echo "Built $IMAGE"
 done
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "built=true" >> "$GITHUB_OUTPUT"
+fi

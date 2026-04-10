@@ -63,6 +63,9 @@ jobs:
           go work edit -json | jq -r '.Use[].DiskPath' | \
             xargs -I{} go build ./{}/...
 
+      - name: Check generated files are current
+        run: make check-generated
+
   security:
     name: Security
     runs-on: ubuntu-latest
