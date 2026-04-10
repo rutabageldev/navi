@@ -14,22 +14,20 @@ linters:
     - exhaustive
     - godot
     - misspell
+  exclusions:
+    rules:
+      - linters:
+          - gosec
+        text: "G104"  # Errors unhandled — handled by errcheck
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-linters-settings:
-  goimports:
-    local-prefixes:
-      - github.com/rutabageldev/navi
-
-issues:
-  exclude-rules:
-    - linters:
-        - gosec
-      text: "G104"  # Errors unhandled — handled by errcheck
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/rutabageldev/navi
 
 run:
   timeout: 5m

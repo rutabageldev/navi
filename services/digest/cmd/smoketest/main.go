@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -34,6 +35,14 @@ func main() {
 	client := &http.Client{Timeout: 10 * time.Second}
 	base := "http://" + *addr
 
+	get := func(path string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, base+path, nil)
+		if err != nil {
+			return nil, err
+		}
+		return client.Do(req)
+	}
+
 	var passed, failed int
 	run := func(name string, fn func() error) {
 		if err := fn(); err != nil {
@@ -57,11 +66,11 @@ func main() {
 	}
 
 	run("TestHealthLive", func() error {
-		resp, err := client.Get(base + "/v1/health/live")
+		resp, err := get("/v1/health/live")
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("got %d, want 200", resp.StatusCode)
 		}
@@ -69,11 +78,11 @@ func main() {
 	})
 
 	run("TestHealthReady", func() error {
-		resp, err := client.Get(base + "/v1/health/ready")
+		resp, err := get("/v1/health/ready")
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
