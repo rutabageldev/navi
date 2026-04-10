@@ -20,6 +20,15 @@ jobs:
     runs-on: [self-hosted]
 
     steps:
+      - name: Load host credentials
+        run: |
+          ENV_FILE="/opt/navi/.env"
+          if [[ ! -f "$ENV_FILE" ]]; then
+            echo "ERROR: $ENV_FILE not found on runner" >&2
+            exit 1
+          fi
+          grep -v '^#' "$ENV_FILE" | grep -v '^[[:space:]]*$' >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
