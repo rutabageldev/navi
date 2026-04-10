@@ -1547,7 +1547,7 @@ P0 smoke tests (each as a named function):
 
 ### Exit criteria
 
-- [ ] Push to a feature branch triggers `ci.yml` and all steps pass
+- [x] Push to a feature branch triggers `ci.yml` and all steps pass
 - [ ] Merge a `feat:` commit to main causes release-please to create
       or update a Release PR with the correct version bump
 - [ ] Merging the Release PR causes release-please to cut a tag
@@ -1623,14 +1623,14 @@ Verify every item in the P0 success criteria before declaring the
 milestone done:
 
 **Infrastructure**
-- [ ] pre-commit hooks installed and passing on the repo
-- [ ] `.golangci.yml` and `.gitleaks.toml` configured and enforced
-- [ ] `go.work` and Go module structure correct
-- [ ] `services/internal/` packages compile and establish real
+- [x] pre-commit hooks installed and passing on the repo
+- [x] `.golangci.yml` and `.gitleaks.toml` configured and enforced
+- [x] `go.work` and Go module structure correct
+- [x] `services/internal/` packages compile and establish real
       connections (Vault, Postgres, NATS, OTEL)
 
 **CI/CD**
-- [ ] Push to feature branch triggers lint + tests
+- [x] Push to feature branch triggers lint + tests
 - [ ] Release PR created by release-please for each feat: commit to main
 - [ ] Version tag triggers staging deploy
 - [ ] Staging smoke tests gate prod promotion
@@ -1643,11 +1643,11 @@ milestone done:
 - [ ] `.versions.json` and `.last-deployed-version` present and managed
 
 **Service**
-- [ ] `services/digest/` compiles and runs in Docker
-- [ ] `GET /v1/health/live` returns 200
-- [ ] `GET /v1/health/ready` returns 200 with Postgres, NATS, and Vault
+- [x] `services/digest/` compiles and runs in Docker
+- [x] `GET /v1/health/live` returns 200
+- [x] `GET /v1/health/ready` returns 200 with Postgres, NATS, and Vault
       connectivity confirmed
-- [ ] All three compose files work correctly
+- [x] All three compose files work correctly
 - [ ] Service version reported in `/v1/health/ready` response body
       matches the deployed tag
 
@@ -1656,17 +1656,17 @@ milestone done:
       request) with the full span visible
 - [ ] Navigate from the trace in Tempo to the correlated log line in
       Loki using trace_id — both links work in both directions
-- [ ] `navi_up` or equivalent metric visible in Foundation Grafana
+- [x] `navi_up` or equivalent metric visible in Foundation Grafana
 - [ ] At least one structured JSON log line queryable in Foundation Loki
 - [ ] Health endpoints showing green in Foundation Uptime Kuma under
       the Navi group
 
 **Vault**
-- [ ] All required Vault paths seeded (with real values for Postgres,
+- [x] All required Vault paths seeded (with real values for Postgres,
       NATS, and OTEL; placeholders acceptable for Twilio, Resend,
       Anthropic in P0)
-- [ ] Service reads from Vault at startup without error
-- [ ] SIGHUP-triggered secret reload confirmed working
+- [x] Service reads from Vault at startup without error
+- [x] SIGHUP-triggered secret reload confirmed working
 
 ### Exit criteria (P0 done when)
 
