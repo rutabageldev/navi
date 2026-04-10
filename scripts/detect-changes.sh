@@ -12,13 +12,19 @@ set -euo pipefail
 PREV="${1:-none}"
 NEW="${2:-HEAD}"
 
+# Resolve NEW to HEAD if it is not a valid git ref (e.g. workflow_dispatch
+# with a non-tag version string like "v0.1.6-drill").
+if ! git rev-parse --verify "$NEW" >/dev/null 2>&1; then
+  NEW="HEAD"
+fi
+
 # Unknown baseline → rebuild everything.
 if [[ "$PREV" == "none" ]] || ! git rev-parse --verify "$PREV" >/dev/null 2>&1; then
   echo "digest"
   exit 0
 fi
 
-CHANGED=$(git diff --name-only "$PREV" "$NEW" 2>/dev/null || echo "")
+CHANGED=$(git diff --name-only "$PREV" "$NEW")
 
 # Shared internal packages affect every service.
 if echo "$CHANGED" | grep -q "^services/internal/"; then
