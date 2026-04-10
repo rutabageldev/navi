@@ -24,21 +24,28 @@ jobs:
           cache: true
 
       - name: go vet
-        run: go vet ./...
+        run: |
+          go work edit -json | jq -r '.Use[].DiskPath' | \
+            xargs -I{} go vet ./{}/...
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v2.11.4
-          args: ./...
+          args: ./services/digest/... ./services/internal/...
 
       - name: Test (race detector)
-        run: go test -race -coverprofile=coverage.out ./...
+        run: |
+          go work edit -json | jq -r '.Use[].DiskPath' | \
+            xargs -I{} go test -race ./{}/...
 
       - name: Build
-        run: go build ./...
+        run: |
+          go work edit -json | jq -r '.Use[].DiskPath' | \
+            xargs -I{} go build ./{}/...
 
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          go work edit -json | jq -r '.Use[].DiskPath' | \
+            xargs -I{} govulncheck ./{}/...
