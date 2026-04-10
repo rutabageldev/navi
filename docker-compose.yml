@@ -1,7 +1,7 @@
 services:
   digest:
     image: ghcr.io/rutabageldev/navi-digest:${NAVI_VERSION:-latest}
-    container_name: navi-digest-prod
+    container_name: navi-prod-digest
     restart: unless-stopped
     environment:
       NAVI_ENV: prod

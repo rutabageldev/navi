@@ -22,7 +22,7 @@ case "$ENV" in
     ;;
   prod)
     case "$SERVICE" in
-      digest) echo "10.0.40.10:8083" ;;
+      digest) echo "10.0.40.10:8084" ;;
       *) echo "unknown service: $SERVICE" >&2; exit 1 ;;
     esac
     ;;
