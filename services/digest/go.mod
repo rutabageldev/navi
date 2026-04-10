@@ -9,6 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/nats-io/nats.go v1.50.0
 	github.com/rutabageldev/navi/services/internal v0.0.0-00010101000000-000000000000
+	go.opentelemetry.io/otel/trace v1.43.0
 )
 
 require (
@@ -51,7 +52,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect

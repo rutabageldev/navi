@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 
 	digestapi "github.com/rutabageldev/navi/services/digest/internal/api"
 	internalnats "github.com/rutabageldev/navi/services/internal/nats"
@@ -199,18 +200,25 @@ func requestIDResponse(next http.Handler) http.Handler {
 }
 
 // requestLogger logs each completed request at INFO level with method, path,
-// status, duration, and request ID, satisfying the ADR-0010 baseline requirement.
+// status, duration, request ID, and trace ID, satisfying the ADR-0008 and
+// ADR-0010 baseline requirements.
 func requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(ww, r)
+		spanCtx := trace.SpanFromContext(r.Context()).SpanContext()
+		traceID := ""
+		if spanCtx.IsValid() {
+			traceID = spanCtx.TraceID().String()
+		}
 		slog.Info("http request", //nolint:gosec // G706: logging request path is intentional in a request logger
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.Status(),
 			"duration_ms", time.Since(start).Milliseconds(),
 			"request_id", middleware.GetReqID(r.Context()),
+			"trace_id", traceID,
 		)
 	})
 }
