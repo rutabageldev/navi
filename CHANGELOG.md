@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1](https://github.com/rutabageldev/navi/compare/v0.1.0...v0.1.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* **ci:** add workflow_dispatch to deploy and handle GITHUB_TOKEN tag trigger gap ([949306e](https://github.com/rutabageldev/navi/commit/949306eaf8c6fd77a8c1acfbe18ffba5522f69e9))
+* **ci:** PAT for release-please and workflow_dispatch for deploy ([687588a](https://github.com/rutabageldev/navi/commit/687588afee900f2b9af0fa86a37d81b4483d985e))
+* **ci:** use PAT for release-please and remove release-as override ([a10be18](https://github.com/rutabageldev/navi/commit/a10be18baff8ba8adaac837ab7cda3c2ab1a4b42))
+
 ## 0.1.0 (2026-04-10)
 
 
