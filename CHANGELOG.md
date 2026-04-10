@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/rutabageldev/navi/compare/v0.1.4...v0.1.5) (2026-04-10)
+
+
+### Bug Fixes
+
+* **digest:** emit trace_id in request logger for Tempo-Loki correlation ([#16](https://github.com/rutabageldev/navi/issues/16)) ([567409c](https://github.com/rutabageldev/navi/commit/567409c3064d87d586296af68ad72450681e03e6))
+
 ## [0.1.4](https://github.com/rutabageldev/navi/compare/v0.1.3...v0.1.4) (2026-04-10)
 
 
