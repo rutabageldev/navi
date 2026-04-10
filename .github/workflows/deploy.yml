@@ -1,0 +1,186 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write  # to commit .last-deployed-version back to main
+  packages: write  # to push images to ghcr.io
+
+jobs:
+  deploy:
+    name: Build → staging → prod
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a PAT or default GITHUB_TOKEN — needed for the commit-back step.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set version
+        id: version
+        run: echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Read previous version
+        id: prev
+        run: echo "value=$(cat .last-deployed-version)" >> "$GITHUB_OUTPUT"
+
+      # ── Build ─────────────────────────────────────────────────────────────
+
+      - name: Build changed services
+        id: build
+        run: ./scripts/build.sh "$VERSION"
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+
+      # ── Security scan ─────────────────────────────────────────────────────
+
+      # Only scan if an image was actually built. Skipped on docs-only tags.
+      # CRITICAL threshold — image scans hit OS packages and are noisier than
+      # filesystem scans; HIGH findings belong in the CI security job.
+      - name: Scan image with Trivy
+        if: steps.build.outputs.built == 'true'
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ghcr.io/rutabageldev/navi-digest:${{ steps.version.outputs.value }}
+          severity: CRITICAL
+          exit-code: 1
+
+      # ── Staging ───────────────────────────────────────────────────────────
+
+      - name: Tag and push staging image
+        if: steps.build.outputs.built == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          REPO=ghcr.io/rutabageldev/navi-digest
+          docker tag "$REPO:$VERSION" "$REPO:staging"
+          docker push "$REPO:$VERSION"
+          docker push "$REPO:staging"
+
+      - name: Deploy to staging
+        if: steps.build.outputs.built == 'true'
+        run: ./scripts/deploy.sh staging "$VERSION" digest
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Smoke test staging
+        if: steps.build.outputs.built == 'true'
+        id: smoketest
+        run: make smoketest ENV=staging
+        continue-on-error: true
+
+      - name: Rollback staging on smoke test failure
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
+        run: |
+          PREV=${{ steps.prev.outputs.value }}
+          ./scripts/rollback.sh staging "$PREV" digest
+        env:
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Smoke test staging rollback
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
+        id: smoketest-rollback
+        run: make smoketest ENV=staging
+        continue-on-error: true
+
+      - name: Notify and fail on staging rollback
+        if: steps.build.outputs.built == 'true' && steps.smoketest.outcome == 'failure'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          PREV=${{ steps.prev.outputs.value }}
+          if [[ "${{ steps.smoketest-rollback.outcome }}" == "success" ]]; then
+            ./scripts/notify-sms.sh -env staging "Hey, listen! Navi $VERSION staging smoke tests FAILED — rolled back to $PREV successfully."
+          else
+            ./scripts/notify-sms.sh -env staging "Hey, listen! Navi $VERSION staging smoke tests FAILED — rollback to $PREV also failed. Manual intervention required."
+          fi
+          exit 1
+
+      # ── Prod ──────────────────────────────────────────────────────────────
+
+      - name: Tag and push prod image
+        if: steps.build.outputs.built == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          REPO=ghcr.io/rutabageldev/navi-digest
+          docker tag "$REPO:$VERSION" "$REPO:prod"
+          docker tag "$REPO:$VERSION" "$REPO:latest"
+          docker push "$REPO:prod"
+          docker push "$REPO:latest"
+
+      - name: Deploy to prod
+        if: steps.build.outputs.built == 'true'
+        run: ./scripts/deploy.sh prod "$VERSION" digest
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Health check prod
+        if: steps.build.outputs.built == 'true'
+        id: healthcheck
+        run: make healthcheck ENV=prod
+        continue-on-error: true
+
+      - name: Rollback prod on health check failure
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
+        run: |
+          PREV=${{ steps.prev.outputs.value }}
+          ./scripts/rollback.sh prod "$PREV" digest
+        env:
+          NAVI_HOST: ${{ secrets.NAVI_HOST }}
+
+      - name: Health check prod rollback
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
+        id: healthcheck-rollback
+        run: make healthcheck ENV=prod
+        continue-on-error: true
+
+      - name: Notify and fail on prod rollback
+        if: steps.build.outputs.built == 'true' && steps.healthcheck.outcome == 'failure'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          PREV=${{ steps.prev.outputs.value }}
+          if [[ "${{ steps.healthcheck-rollback.outcome }}" == "success" ]]; then
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION prod health check FAILED — rolled back to $PREV successfully."
+          else
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION prod health check FAILED — rollback to $PREV also failed. Manual intervention required."
+          fi
+          exit 1
+
+      # ── Post-deploy ───────────────────────────────────────────────────────
+
+      # Only advance rollback state when a service was actually deployed to prod.
+      # A docs-only release must not change the version that rollback would target.
+      - name: Update .last-deployed-version
+        if: steps.build.outputs.built == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          echo "$VERSION" > .last-deployed-version
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git add .last-deployed-version
+          git commit -m "chore(infra): update .last-deployed-version to $VERSION [skip ci]"
+          git push origin HEAD:main
+
+      - name: Send success SMS
+        run: |
+          VERSION=${{ steps.version.outputs.value }}
+          if [[ "${{ steps.build.outputs.built }}" == "true" ]]; then
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION deployed successfully."
+          else
+            ./scripts/notify-sms.sh -env prod "Hey, listen! Navi $VERSION tagged — no service changes, deploy skipped."
+          fi

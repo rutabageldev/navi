@@ -37,12 +37,31 @@ make setup    # installs pre-commit hooks and other dev dependencies
 
 ### Pre-Commit Hook Composition
 
-The following hooks run on every commit in the order listed:
+Pre-commit hooks run at commit time, not push time. Issues are caught
+at the earliest possible moment — before they exist in local history.
+A problem caught at commit is cheaper to fix than one caught in CI
+after a push, and cheaper still than one that reaches a PR review.
+
+Not all hooks run on every commit. Slow hooks that make external
+network calls (e.g. govulncheck) run only when the files that could
+introduce a problem are modified.
+
+**CVE coverage strategy**
+
+| Where | Tool | Catches |
+|---|---|---|
+| Pre-commit (every commit) | gitleaks | Secrets and credentials |
+| Pre-commit (go.mod changes only) | govulncheck | Newly introduced vulnerable deps |
+| CI (every push) | govulncheck | All reachable vulnerable code paths |
+| CI (weekly scheduled) | govulncheck | New CVEs in existing dependencies |
+
+The following hooks run on every commit in the order listed, except
+where noted:
 
 **Secrets Scanning**
 ```yaml
 - repo: https://github.com/gitleaks/gitleaks
-  rev: v8.18.0
+  rev: v8.24.3
   hooks:
     - id: gitleaks
 ```
@@ -59,7 +78,7 @@ the pattern is safe.
 **File Hygiene**
 ```yaml
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.5.0
+  rev: v5.0.0
   hooks:
     - id: trailing-whitespace
     - id: end-of-file-fixer
@@ -75,31 +94,99 @@ the pattern is safe.
 The `no-commit-to-branch` hook prevents direct commits to main.
 All changes must go through a pull request.
 
-**Go Formatting**
+**Go Formatting and Vetting**
 ```yaml
-- repo: https://github.com/dnephin/pre-commit-golang
-  rev: v0.5.1
+- repo: local
   hooks:
     - id: go-fmt
+      name: go fmt
+      language: system
+      entry: gofmt -l -w
+      types: [go]
     - id: go-vet
+      name: go vet
+      language: system
+      entry: bash -c './scripts/govet.sh'
+      pass_filenames: false
+      types: [go]
     - id: go-imports
+      name: goimports
+      language: system
+      entry: goimports -l -w
+      types: [go]
 ```
 
-`gofmt` and `goimports` are run on all modified Go files.
-Unformatted code does not commit. `go vet` catches common
-correctness issues.
+`gofmt` and `goimports` run on all modified Go files. Unformatted
+code does not commit. `go vet` catches common correctness issues.
+
+Local hooks are used instead of `dnephin/pre-commit-golang` because
+this repo uses a `go.work` workspace. The upstream hooks pass
+individual file paths to `go vet`, which does not work correctly in
+a workspace context. The local `scripts/govet.sh` wrapper iterates
+over modules explicitly and skips modules with no Go files.
+
+**Vulnerability Scanning (go.mod changes only)**
+```yaml
+- repo: local
+  hooks:
+    - id: govulncheck-on-gomod-change
+      name: govulncheck (go.mod changes only)
+      entry: bash -c './scripts/govulncheck.sh'
+      language: system
+      files: ^services/.*/go\.mod$
+      pass_filenames: false
+```
+
+`govulncheck` scans all reachable code paths against the Go
+vulnerability database. It is scoped to commits that modify a
+`go.mod` file because it makes network calls to the vuln database
+and is too slow to run on every commit. Running it on `go.mod`
+changes catches newly introduced vulnerable dependencies at the
+moment they are added, with no cost on normal code commits.
+
+The hook invokes `scripts/govulncheck.sh` rather than calling
+`govulncheck ./...` directly. This is required because the repo
+uses a `go.work` workspace — there is no `go.mod` at the root, so
+`govulncheck ./...` would fail. The script iterates over each
+workspace module, runs `govulncheck` within that module's directory,
+and prepends the toolchain version from `go.work` to PATH so the
+stdlib scan reflects the version the code will actually be compiled
+with.
+
+`govulncheck` MUST be installed on the developer's machine:
+```
+go install golang.org/x/vuln/cmd/govulncheck@latest
+```
+
+The required Go toolchain is pinned via the `toolchain` directive in
+`go.work`. When a new toolchain is downloaded (via
+`go install golang.org/dl/goX.Y.Z@latest && goX.Y.Z download`), the
+script resolves it automatically from `$HOME/sdk/goX.Y.Z/bin`.
 
 **OpenAPI Spec Validation**
 ```yaml
-- repo: https://github.com/python-jsonschema/check-jsonschema
-  rev: 0.28.0
+- repo: local
   hooks:
-    - id: check-openapi
-      files: ^services/.*/api/openapi\.yaml$
+    - id: validate-openapi
+      name: Validate OpenAPI specs
+      language: system
+      entry: check-jsonschema --schemafile https://spec.openapis.org/oas/3.1/schema/2022-10-07
+      types: [yaml]
+      files: services/.*/api/openapi\.yaml$
 ```
 
-OpenAPI specs are validated against the OpenAPI 3.1 schema on every
+OpenAPI specs are validated against the OAS 3.1 JSON Schema on every
 commit that modifies a spec file. An invalid spec does not commit.
+
+The `check-jsonschema` CLI tool (pip: `check-jsonschema`) MUST be
+installed on the developer's machine. It is not managed by the
+pre-commit framework's environment isolation for this hook because
+it runs as a system-language local hook.
+
+Note: The `check-openapi` hook ID previously referenced in this ADR
+does not exist in the `python-jsonschema/check-jsonschema` repository.
+The local hook approach above is the correct implementation and
+produces equivalent behavior.
 
 **JSON Schema Validation**
 ```yaml
@@ -119,7 +206,7 @@ commit that modifies them.
 **Commit Message Format**
 ```yaml
 - repo: https://github.com/commitizen-tools/commitizen
-  rev: v3.13.0
+  rev: v4.6.0
   hooks:
     - id: commitizen
 ```
@@ -155,13 +242,10 @@ golangci-lint runs with the following linters enabled:
 linters:
   enable:
     - errcheck        # unchecked errors
-    - gosimple        # simplification suggestions
     - govet           # correctness issues
     - ineffassign     # unused assignments
-    - staticcheck     # static analysis
+    - staticcheck     # static analysis (absorbs gosimple in v2)
     - unused          # unused code
-    - gofmt           # formatting
-    - goimports       # import ordering
     - gosec           # security issues
     - bodyclose       # unclosed HTTP response bodies
     - contextcheck    # improper context usage
@@ -169,7 +253,17 @@ linters:
     - exhaustive      # missing switch cases on enums
     - godot           # comment formatting
     - misspell        # spelling errors
+
+formatters:
+  enable:
+    - gofmt           # formatting
+    - goimports       # import ordering
 ```
+
+Note: golangci-lint v2 separates formatters from linters. `gofmt` and
+`goimports` MUST be listed under `formatters.enable`, not `linters.enable`.
+`gosimple` was merged into `staticcheck` in v2 and MUST NOT appear as a
+standalone linter.
 
 The `gosec` linter specifically targets security anti-patterns:
 hardcoded credentials, unsafe integer conversions, SQL injection

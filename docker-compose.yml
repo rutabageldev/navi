@@ -1,0 +1,27 @@
+services:
+  digest:
+    image: ghcr.io/rutabageldev/navi-digest:${NAVI_VERSION:-latest}
+    container_name: navi-digest-prod
+    restart: unless-stopped
+    environment:
+      NAVI_ENV: prod
+      VAULT_ADDR: https://10.0.40.10:8200
+      VAULT_CACERT: /vault/tls/vault-ca.crt
+      VAULT_TOKEN: ${VAULT_TOKEN}
+    volumes:
+      - /opt/foundation/vault/tls/vault-ca.crt:/vault/tls/vault-ca.crt:ro
+    ports:
+      - "${NAVI_HOST:-10.0.40.10}:8083:8080"
+    networks:
+      - navi
+      - event-bus-prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.navi-digest.rule=Host(`navi.home.arpa`)"
+      - "traefik.http.routers.navi-digest.tls=true"
+
+networks:
+  navi:
+    external: true
+  event-bus-prod:
+    external: true

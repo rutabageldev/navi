@@ -52,8 +52,37 @@ services MUST NOT be introduced.
 
 All inter-service communication within Navi MUST be event-driven via
 NATS JetStream. The NATS instance deployed in ruby-core is used as the
-shared event bus. All Navi subjects are namespaced under `navi.>` to
-guarantee zero collision with ruby-core subjects.
+shared event bus. All Navi subjects are namespaced under `navi.{env}.>` to guarantee zero
+collision with ruby-core subjects and full isolation between environments.
+
+**NATS Authentication and Transport**
+
+The ruby-core NATS server requires two auth mechanisms from all clients:
+
+- **NKEY authentication:** Each Navi service has an NKEY keypair. The
+  private seed is stored in Vault at `secret/navi/{env}/nats` (field:
+  `seed`). The public key is registered in the ruby-core NATS server's
+  authorized users list (via `secret/ruby-core/nats/navi-{env}`). On
+  connect, the client signs a server nonce with the seed to prove identity.
+
+- **mTLS:** All connections use TLS 1.3 with mutual certificate
+  verification. The client certificate and CA are stored in Vault at
+  `secret/navi/{env}/nats/tls` (fields: `cert`, `key`, `ca`). The CA is
+  the same CA used for all ruby-core NATS clients.
+
+Per-environment NATS addresses:
+- dev:     `tls://127.0.0.1:4222`
+- staging: `tls://127.0.0.1:4223`
+- prod:    `tls://127.0.0.1:4223`
+
+Credentials are fetched from Vault at startup via `loadNATSConfig()` in
+`services/digest/cmd/digest/main.go`. The connection is established via
+`services/internal/nats.Connect(Config)`, which constructs the NKEY
+signing callback and `tls.Config` from the fetched material.
+
+Subject ACLs enforced by the NATS server for Navi:
+- publish:   `navi.{env}.>`, `audit.navi.>`, `$JS.API.>`, `$JS.ACK.>`
+- subscribe: `navi.{env}.>`, `_INBOX.>`
 
 Polling of external sources (RSS feeds, APIs) occurs only at the
 system boundary -- in the collector component of the digest service.
@@ -62,16 +91,28 @@ the polling surface area and makes new features additive: a new
 subscriber to an existing subject adds capability without modifying
 existing components.
 
+**Subject naming convention**
+
+Navi follows ruby-core ADR-0027: `{source}.{class}.{type}[.{id}][.{action}]`.
+All business subjects are prefixed with `navi.{env}.` to scope them to the
+environment. Audit subjects follow the ruby-core exception pattern
+`audit.{source}.{type}` (outside the env namespace, captured by the shared
+`AUDIT_EVENTS` stream which filters on `audit.>`).
+
 The core subject topology is:
 
 ```
-navi.articles.collected     # raw article fetched, triggers enrichment
-navi.articles.enriched      # entity-linked, ready for storage
-navi.digest.ready           # digest generated, triggers delivery
-navi.calendar.events        # future: calendar poller output
-navi.rolodex.nudge          # future: relationship health alert
-navi.sms.inbound            # inbound SMS from Twilio webhook
-navi.sms.outbound           # outbound SMS to be sent via Twilio
+# Business events — published to navi.{env}.> namespace
+navi.{env}.events.articles.collected  # raw article fetched, triggers enrichment
+navi.{env}.events.articles.enriched   # entity-linked, ready for storage
+navi.{env}.events.digest.created      # digest generated, triggers delivery
+navi.{env}.events.calendar.updated    # future: calendar poller output
+navi.{env}.events.rolodex.nudge       # future: relationship health alert
+navi.{env}.events.sms.inbound         # inbound SMS from Twilio webhook
+navi.{env}.events.sms.outbound        # outbound SMS to be sent via Twilio
+
+# Audit events — published to shared audit.> namespace
+audit.navi.{type}                      # e.g. audit.navi.sms_received
 ```
 
 All events MUST conform to the CloudEvents v1.0 specification,

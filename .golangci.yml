@@ -1,0 +1,33 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+    - bodyclose
+    - contextcheck
+    - noctx
+    - exhaustive
+    - godot
+    - misspell
+  exclusions:
+    rules:
+      - linters:
+          - gosec
+        text: "G104"  # Errors unhandled — handled by errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/rutabageldev/navi
+
+run:
+  timeout: 5m

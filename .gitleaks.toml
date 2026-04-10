@@ -1,0 +1,17 @@
+[allowlist]
+  description = "Known false positives in docs and test fixtures"
+
+  [[allowlist.rules]]
+    description = "Example Vault paths in ADRs and CLAUDE.md are illustrative, not real credentials"
+    regexTarget = "line"
+    regex = '''secret/(data/)?navi/(dev|staging|prod)/'''
+
+  [[allowlist.rules]]
+    description = "Placeholder values used in vault-seed documentation and plan examples"
+    regexTarget = "line"
+    regex = '''(PLACEHOLDER|CHANGE_ME|CONFIRM_ME|CHANGEME)'''
+
+  [[allowlist.rules]]
+    description = "Test/example UUIDs in documentation"
+    regexTarget = "line"
+    regex = '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'''

@@ -39,7 +39,8 @@ navi/
 │   └── prometheus/                # Prometheus alert rules
 ├── scripts/                       # Operational scripts (backup, restore, prune)
 ├── services/
-│   └── digest/                    # Daily intelligence service (v1)
+│   ├── digest/                    # Daily intelligence service (v1)
+│   └── internal/                  # Shared Go packages (telemetry, vault, postgres, nats, events)
 ├── docker-compose.yml
 ├── docker-compose.staging.yml
 ├── docker-compose.dev.yml
@@ -70,7 +71,7 @@ make lint             # Run golangci-lint
 make migrate ENV=x    # Run migrations for environment x
 make smoketest ENV=x  # Run smoke tests for environment x
 make deploy ENV=x     # Manual deploy (emergency use only)
-make backup ENV=prod  # Run backup manually
+make rollback ENV=x VERSION=y  # Emergency rollback
 make logs ENV=x       # Tail logs for environment x
 make status           # Show running containers across all environments
 ```

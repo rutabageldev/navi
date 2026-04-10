@@ -1,0 +1,9 @@
+*.env
+.env.*
+*.local
+tmp/
+*.log
+dist/
+*.test
+coverage.out
+/digest
