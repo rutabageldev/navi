@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -41,14 +40,6 @@ func (h *Handler) HealthLive(w http.ResponseWriter, _ *http.Request) {
 // HealthReady handles GET /v1/health/ready.
 // Runs dependency health checks in parallel and returns 200 if all pass, 503 if any fail.
 func (h *Handler) HealthReady(w http.ResponseWriter, r *http.Request) {
-	// DRILL ONLY — forces 503 in prod to exercise automated prod rollback. Reverted in next PR.
-	if os.Getenv("NAVI_ENV") == "prod" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"error":{"code":"drill","message":"rollback drill","request_id":"drill"}}`))
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
