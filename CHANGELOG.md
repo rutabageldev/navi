@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/rutabageldev/navi/compare/v0.1.6...v0.1.7) (2026-04-10)
+
+
+### Reverts
+
+* **digest:** remove rollback drill 503 from HealthReady ([#21](https://github.com/rutabageldev/navi/issues/21)) ([17fa149](https://github.com/rutabageldev/navi/commit/17fa14911fcf4369859266ca3f8af28b75600a54))
+
 ## [0.1.6](https://github.com/rutabageldev/navi/compare/v0.1.5...v0.1.6) (2026-04-10)
 
 
