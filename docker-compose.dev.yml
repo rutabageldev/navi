@@ -5,7 +5,7 @@ services:
       dockerfile: services/digest/Dockerfile
       args:
         VERSION: dev
-    container_name: navi-digest-dev
+    container_name: navi-dev-digest
     environment:
       NAVI_ENV: dev
       VAULT_ADDR: https://10.0.40.10:8200

@@ -1,7 +1,7 @@
 services:
   digest:
     image: ghcr.io/rutabageldev/navi-digest:${NAVI_VERSION:-staging}
-    container_name: navi-digest-staging
+    container_name: navi-staging-digest
     restart: unless-stopped
     environment:
       NAVI_ENV: staging
