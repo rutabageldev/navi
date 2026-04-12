@@ -3,6 +3,11 @@ VERSION         ?= $(shell cat .last-deployed-version)
 SERVICE         ?= digest
 COMPOSE_PROJECT  = navi-$(ENV)
 
+# Vault connection defaults for targets that talk to Vault directly (migrate, vault-seed).
+# VAULT_TOKEN must be set in the environment or sourced from .env.
+export VAULT_ADDR   ?= https://10.0.40.10:8200
+export VAULT_CACERT ?= /opt/foundation/vault/tls/vault-ca.crt
+
 .PHONY: setup setup-infra dev test lint build deploy smoketest \
         healthcheck rollback migrate vault-seed logs docker-ps \
         check-generated validate-schemas \
@@ -54,7 +59,8 @@ rollback:
 
 ## migrate: Run pending migrations against environment
 migrate:
-	go run ./services/digest/cmd/migrate/... -env $(ENV)
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	 go run ./services/digest/cmd/migrate/... -env $(ENV)
 
 ## vault-seed: Seed Vault paths with placeholder values for environment
 vault-seed:

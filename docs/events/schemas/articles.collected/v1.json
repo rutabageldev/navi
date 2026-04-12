@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "articles.collected/v1",
+  "title": "ArticleCollected",
+  "description": "Payload for navi.{env}.events.articles.collected. Published by digest/collector when a new article passes URL deduplication.",
+  "type": "object",
+  "required": ["article_id", "feed_name", "url", "title", "collected_at"],
+  "additionalProperties": false,
+  "properties": {
+    "article_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 assigned to this article in the articles table before publishing."
+    },
+    "feed_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable feed name from feeds.yaml (e.g. 'Reuters Technology')."
+    },
+    "bucket": {
+      "type": "string",
+      "enum": ["tech_banking", "global_events"],
+      "description": "Content bucket the feed belongs to, from feeds.yaml."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical article URL. Uniqueness is enforced against the articles table before publishing."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Article title as provided by the RSS feed."
+    },
+    "raw_content": {
+      "type": "string",
+      "description": "Extracted article text, trimmed to the content limit defined in ADR-0015. Empty string if extraction failed; enricher must handle this case."
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC3339 timestamp of when the article was fetched by the collector."
+    }
+  }
+}

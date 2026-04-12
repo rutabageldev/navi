@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "digest.ready/v1",
+  "title": "DigestReady",
+  "description": "Payload for navi.{env}.events.digest.ready. Published by digest/summarizer when a digest record has been written to Postgres and is ready for delivery.",
+  "type": "object",
+  "required": ["digest_id", "digest_type", "date", "article_count", "generated_at", "degraded"],
+  "additionalProperties": false,
+  "properties": {
+    "digest_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 of the digest record in the digests table."
+    },
+    "digest_type": {
+      "type": "string",
+      "enum": ["daily", "weekly", "monthly"],
+      "description": "Type of digest. Determines the coverage window and the summarization prompt used."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Coverage date for daily digests (YYYY-MM-DD); end date of the coverage window for weekly and monthly digests."
+    },
+    "article_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of articles included in this digest. May be 0 for a thin digest (no articles met the relevance threshold); the digest is still delivered with a note."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC3339 timestamp of when the digest record was written to Postgres."
+    },
+    "degraded": {
+      "type": "boolean",
+      "description": "True if the digest was generated without Claude summaries (ErrBudgetExceeded or API unavailable). When true, content_html in the digests table contains raw headlines and source URLs with a degraded-mode header. Delivery proceeds normally."
+    }
+  }
+}

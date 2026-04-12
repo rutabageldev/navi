@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "articles.enriched/v1",
+  "title": "ArticleEnriched",
+  "description": "Payload for navi.{env}.events.articles.enriched. Published by digest/enricher after entity extraction is complete and the enriched article has been written to Postgres.",
+  "type": "object",
+  "required": ["article_id", "topics", "entities", "enriched_at", "degraded"],
+  "additionalProperties": false,
+  "properties": {
+    "article_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 of the article in the articles table. References the article_id from the corresponding articles.collected event."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Conceptual topics extracted from the article by Claude. Empty array when degraded=true.",
+      "items": {
+        "type": "object",
+        "required": ["name", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Topic label (e.g. 'fintech regulation', 'AI safety')."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Claude's confidence in this topic assignment, 0.0–1.0."
+          }
+        }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Named entities extracted from the article by Claude. Empty array when degraded=true. Used by the Rolodex feature to build company and person profiles.",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Entity name as it appears in the article (e.g. 'JPMorgan Chase', 'Jane Fraser')."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["company", "person", "organization", "location"],
+            "description": "Entity classification. 'company' and 'person' are the primary types consumed by the Rolodex feature."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Claude's confidence in this entity extraction, 0.0–1.0."
+          }
+        }
+      }
+    },
+    "enriched_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC3339 timestamp of when enrichment completed."
+    },
+    "degraded": {
+      "type": "boolean",
+      "description": "True if enrichment was skipped due to ErrBudgetExceeded or a Claude API failure after retries. When true, topics and entities are empty arrays and the article is stored with no entity links."
+    }
+  }
+}
