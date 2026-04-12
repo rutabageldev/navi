@@ -194,7 +194,7 @@ migration or Block 5 builds the shared client.
 
 ---
 
-### Block 3 — ADR-0015: Article Content Acquisition
+### Block 3 — ADR-0015: Article Content Acquisition ✓ Complete (`b2d4ada`)
 
 **What this block produces:**
 - `docs/adr/ADR-0015-article-content-acquisition.md`
