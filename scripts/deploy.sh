@@ -41,5 +41,5 @@ esac
 
 echo "Deploying $SERVICE $VERSION to $ENV ..."
 NAVI_VERSION="$VERSION" NAVI_HOST="${NAVI_HOST:-10.0.40.10}" \
-  docker compose -f "$COMPOSE_FILE" up -d "$SERVICE"
+  docker compose -p "navi-${ENV}" -f "$COMPOSE_FILE" up -d "$SERVICE"
 echo "Deployed $SERVICE $VERSION to $ENV"

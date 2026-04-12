@@ -73,10 +73,10 @@ context propagation across NATS boundaries as defined in ADR-0008.
   "traceparent":      "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
   "tracestate":       "",
   "data": {
-    "article_id":  "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-    "feed_name":   "Reuters Technology",
-    "url":         "https://...",
-    "title":       "...",
+    "article_id":   "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "feed_name":    "Reuters Technology",
+    "url":          "https://...",
+    "title":        "...",
     "collected_at": "2026-04-06T06:15:00Z"
   }
 }
@@ -91,48 +91,59 @@ a corresponding registry entry.
 
 **v1 Event Type Registry:**
 
+Subject naming follows the convention established in ADR-0002 (amended 2026-04-12):
+`navi.{env}.{class}.{type}[.{action}]`, where `{class}` is one of `events`,
+`commands`, or `errors`. This convention is consistent with ruby-core ADR-0027.
+
 ```
 navi.digest.article.collected
+  Class:     events
   Source:    digest/collector
-  Subject:   navi.{env}.articles.collected
+  Subject:   navi.{env}.events.articles.collected
   Published: when a new article is fetched and passes URL dedup
   Consumed:  digest/enricher
 
 navi.digest.article.enriched
+  Class:     events
   Source:    digest/enricher
-  Subject:   navi.{env}.articles.enriched
+  Subject:   navi.{env}.events.articles.enriched
   Published: when entity extraction and embedding are complete
-  Consumed:  digest/store (persistence), digest/summarizer (on schedule)
+  Consumed:  digest/store (persistence)
 
 navi.digest.ready
+  Class:     events
   Source:    digest/summarizer
-  Subject:   navi.{env}.digest.ready
-  Published: when a digest has been generated and stored
+  Subject:   navi.{env}.events.digest.ready
+  Published: when a digest has been generated and stored and is ready for delivery
   Consumed:  digest/delivery
 
 navi.sms.received
+  Class:     events
   Source:    delivery/webhook
-  Subject:   navi.{env}.sms.inbound
+  Subject:   navi.{env}.events.sms.received
   Published: when a validated, authorized inbound SMS is received
   Consumed:  intent/parser
 
 navi.sms.send
+  Class:     commands
   Source:    intent/handler, delivery/dispatcher
-  Subject:   navi.{env}.sms.outbound
-  Published: when an outbound SMS needs to be sent
+  Subject:   navi.{env}.commands.sms.send
+  Published: when an outbound SMS needs to be sent (a directive, not a state change)
   Consumed:  delivery/sms-channel
 
 navi.error.reported
+  Class:     errors
   Source:    any component
-  Subject:   navi.{env}.errors
+  Subject:   navi.{env}.errors.reported
   Published: on any ERROR level condition
   Consumed:  monitoring subscriber (future)
 
 navi.security.unauthorized_sms
+  Class:     audit (external namespace)
   Source:    delivery/webhook
-  Subject:   navi.{env}.security.events
+  Subject:   audit.navi.sms_unauthorized
   Published: when an SMS from an unauthorized number is received
-  Consumed:  monitoring subscriber (future)
+  Consumed:  audit-sink (future)
 ```
 
 ### Schema Definition

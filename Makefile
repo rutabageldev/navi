@@ -1,6 +1,7 @@
-ENV        ?= dev
-VERSION    ?= $(shell cat .last-deployed-version)
-SERVICE    ?= digest
+ENV             ?= dev
+VERSION         ?= $(shell cat .last-deployed-version)
+SERVICE         ?= digest
+COMPOSE_PROJECT  = navi-$(ENV)
 
 .PHONY: setup setup-infra dev test lint build deploy smoketest \
         healthcheck rollback migrate vault-seed logs docker-ps \
@@ -18,7 +19,7 @@ setup-infra:
 
 ## dev: Start local dev environment
 dev:
-	NAVI_ENV=dev docker compose -f docker-compose.dev.yml up
+	NAVI_ENV=dev docker compose -p navi-dev -f docker-compose.dev.yml up
 
 ## test: Run unit tests with race detector
 test:
@@ -61,7 +62,7 @@ vault-seed:
 
 ## logs: Tail container logs for environment
 logs:
-	docker compose -f docker-compose.$(ENV).yml logs -f
+	docker compose -p $(COMPOSE_PROJECT) -f docker-compose.$(ENV).yml logs -f
 
 ## docker-ps: Show running navi containers with aligned columns
 docker-ps:

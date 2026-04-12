@@ -99,20 +99,43 @@ environment. Audit subjects follow the ruby-core exception pattern
 `audit.{source}.{type}` (outside the env namespace, captured by the shared
 `AUDIT_EVENTS` stream which filters on `audit.>`).
 
+Because all three Navi environments share the same ruby-core NATS server (unlike
+ruby-core, which uses separate server instances per environment), the environment
+token is required inside the subject for isolation. The full convention is:
+
+```
+navi.{env}.{class}.{type}[.{action}]
+```
+
+Where `{class}` MUST be one of: `events`, `commands`, `errors`.
+Audit events are published outside the env namespace following the shared audit
+pattern: `audit.navi.{type}`.
+
+The `{class}` token enables wildcard ACLs and monitoring subscriptions consistent
+with ruby-core usage (e.g. `navi.prod.events.>`, `navi.prod.commands.>`).
+
 The core subject topology is:
 
 ```
 # Business events — published to navi.{env}.> namespace
-navi.{env}.events.articles.collected  # raw article fetched, triggers enrichment
-navi.{env}.events.articles.enriched   # entity-linked, ready for storage
-navi.{env}.events.digest.created      # digest generated, triggers delivery
-navi.{env}.events.calendar.updated    # future: calendar poller output
-navi.{env}.events.rolodex.nudge       # future: relationship health alert
-navi.{env}.events.sms.inbound         # inbound SMS from Twilio webhook
-navi.{env}.events.sms.outbound        # outbound SMS to be sent via Twilio
+navi.{env}.events.articles.collected   # raw article fetched, triggers enrichment
+navi.{env}.events.articles.enriched    # entity-linked, ready for storage
+navi.{env}.events.digest.ready         # digest ready for delivery (not "created" —
+                                        # delivery triggers on readiness, not DB insert)
+navi.{env}.events.calendar.updated     # future: calendar poller output
+navi.{env}.events.rolodex.contact_added    # future: Rolodex add
+navi.{env}.events.rolodex.contact_updated  # future: Rolodex update
+navi.{env}.events.sms.received         # inbound SMS from Twilio webhook (authorized)
+
+# Commands — directives to take action, published to navi.{env}.> namespace
+navi.{env}.commands.sms.send           # outbound SMS to be sent via Twilio
+                                        # (a directive, not a state-change notification)
+
+# Errors — published to navi.{env}.> namespace
+navi.{env}.errors.reported             # any ERROR-level condition from any component
 
 # Audit events — published to shared audit.> namespace
-audit.navi.{type}                      # e.g. audit.navi.sms_received
+audit.navi.{type}                       # e.g. audit.navi.sms_unauthorized
 ```
 
 All events MUST conform to the CloudEvents v1.0 specification,
