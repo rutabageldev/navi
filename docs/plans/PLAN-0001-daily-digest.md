@@ -139,7 +139,7 @@ adds feeds without rearchitecting the collector.
 
 ---
 
-### Block 1 — Resolve Drift and Define Event Contracts
+### Block 1 — Resolve Drift and Define Event Contracts ✓ Complete (`6ca7508`)
 
 **What this block produces:**
 - `docs/events/REGISTRY.md` — all v1 event types with subjects, publishers, and consumers
@@ -173,7 +173,7 @@ commits. No persistent state affected.
 
 ---
 
-### Block 2 — ADR-0014: Claude API Integration Pattern
+### Block 2 — ADR-0014: Claude API Integration Pattern ✓ Complete (`eaaede0`)
 
 **What this block produces:**
 - `docs/adr/ADR-0014-claude-api-integration-pattern.md`
